@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>クラブ台帳</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="クラブ台帳">
+<meta name="theme-color" content="#1f5f4a">
+<!-- APP_BUILD 0.1.0 2026-11-17 -->
+<style>
+:root{
+  --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
+  --accent:#1f5f4a; --accent-weak:#e3efe9; --warn:#c0392b; --warn-weak:#fbe9e7; --amber:#b7791f;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141816; --card:#1d2320; --fg:#e6ebe8; --muted:#9aa49f; --line:#2f3733;
+    --accent:#5cb592; --accent-weak:#203a30; --warn:#ef6b5d; --warn-weak:#3a2220; --amber:#e0a84a; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);
+  font-family:"Yu Gothic","游ゴシック",YuGothic,"Hiragino Sans",system-ui,sans-serif;font-size:15px;line-height:1.5}
+header{position:sticky;top:0;z-index:5;background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px}
+header h1{font-size:17px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header button{background:rgba(255,255,255,.18);color:#fff;border:0}
+main{padding:12px 16px 96px;max-width:760px;margin:0 auto}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav.tabs button{flex:1;border:0;border-radius:0;background:none;padding:12px 4px;color:var(--muted);font-weight:600}
+nav.tabs button.on{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+h2{font-size:15px;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+h2 .sp{flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+.muted{color:var(--muted)} .sm{font-size:13px} .xs{font-size:12px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:7px 12px;cursor:pointer}
+button.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.warn{color:var(--warn);border-color:var(--warn)}
+button.sm{padding:4px 9px;font-size:13px}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 8px;width:100%}
+textarea{min-height:84px}
+label.f{display:block;margin-bottom:8px}
+label.f span{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.club{display:flex;gap:12px;align-items:center;cursor:pointer}
+.thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;flex:none;background:var(--accent-weak);display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:700}
+.club .body{min-width:0;flex:1}
+.club .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.club .ln{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--accent-weak);color:var(--accent);font-weight:600}
+.badge.w{background:var(--warn-weak);color:var(--warn)}
+.hist{border-top:1px solid var(--line);padding:8px 0;display:flex;gap:8px;align-items:flex-start}
+.hist:first-child{border-top:0}
+.hist .d{font-size:12px;color:var(--muted);width:84px;flex:none}
+.hist .t{flex:1;min-width:0;word-break:break-all}
+.cur{font-size:11px;color:var(--accent);font-weight:700}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
+.photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer}
+details>summary{cursor:pointer;font-weight:700;margin:14px 0 8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:5px 4px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+td.out{color:var(--warn);font-weight:700}
+a{color:var(--accent)}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:20}
+#modal.on{display:flex}
+#modal .sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:14px 14px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+#modal h3{margin:0 0 12px;font-size:16px}
+#toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#222;color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;display:none;z-index:30;max-width:90vw}
+#upd{display:none;background:var(--warn-weak);color:var(--fg);padding:10px 16px;border-bottom:1px solid var(--line)}
+#upd.on{display:block}
+.notice{background:var(--warn-weak);border-radius:8px;padding:10px;font-size:13px}
+svg text{fill:var(--muted);font-size:10px}
+svg .lbl{fill:var(--fg);font-size:10px}
+</style>
+</head>
+<body>
+<header><h1 id="ttl">クラブ台帳</h1><span class="xs" style="opacity:.8">v<span id="ver"></span></span></header>
+<div id="upd"></div>
+<main id="app"><p class="muted">読み込み中…</p></main>
+<nav class="tabs">
+  <button data-v="bag" onclick="go('bag')">バッグ</button>
+  <button data-v="flow" onclick="go('flow')">重量フロー</button>
+  <button data-v="data" onclick="go('data')">データ</button>
+</nav>
+<div id="modal" onclick="if(event.target===this)closeModal()"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+<datalist id="dl-num"></datalist><datalist id="dl-maker"></datalist><datalist id="dl-series"></datalist>
+<datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
+<script>
+'use strict';
+const APP_VERSION='0.1.0';
+const SCHEMA=1;
+const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
+
+/* ---------- 選択肢 ---------- */
+const KINDS=[['W','ドライバー'],['FW','フェアウェイウッド'],['UT','ユーティリティ'],['I','アイアン'],['WG','ウェッジ'],['PT','パター'],['他','その他']];
+const STATUS=[['bag','バッグ'],['spare','控え'],['sold','売却済'],['gone','手放した（売却以外）']];
+const NUMS=['1W','2W','3W','4W','5W','7W','9W','11W','2U','3U','4U','5U','6U','7U','1I','2I','3I','4I','5I','6I','7I','8I','9I','PW','AW','GW','SW','LW','46°','48°','50°','52°','54°','56°','58°','60°','62°','PT'];
+const MAKERS=['Titleist','Callaway','TaylorMade','PING','Srixon','Cleveland','Mizuno','Bridgestone','Honma','Yamaha','Cobra','PXG','Majesty','XXIO','Odyssey','Scotty Cameron','Fourteen','Epon','Miura','Wilson'];
+const FLEX=['L','A','R','R2','SR','S','S+','X','TX'];
+const KICK=['先','先中','中','中元','元'];
+const COND=['新品','中古'];
+const RANK=['S','A','B','C','D'];
+function range(a,b,st,fmt){ const o=[]; for(let v=a; v<=b+1e-9; v=Math.round((v+st)*1000)/1000) o.push([v,fmt?fmt(v):String(v)]); return o; }
+const BAL=(()=>{ const o=[]; 'ABCDEFG'.split('').forEach(L=>{ for(let d=0;d<=9;d++) o.push(L+d); }); return o; })();
+const LEN=range(30,48,0.25,v=>v.toFixed(2)+'″');
+const LOFT=range(0,72,0.5,v=>v.toFixed(1)+'°');
+const LIE=range(45,75,0.25,v=>v.toFixed(2)+'°');
+const DIST=range(0,350,5,v=>v+'y');
+const YEARS=(()=>{ const y=new Date().getFullYear()+1, o=[]; for(let v=y; v>=1980; v--) o.push([v,String(v)]); return o; })();
+
+/* 履歴・取引の項目定義（t: date/text/num/sel/area、n: 数値で保存、dl: 候補リスト、u: 単位） */
+const F={
+  shafts:{ttl:'シャフト', hist:true, f:[
+    {k:'date',l:'装着日',t:'date'},{k:'maker',l:'メーカー',t:'text',dl:'dl-smaker'},{k:'series',l:'シリーズ',t:'text',dl:'dl-sseries'},
+    {k:'flex',l:'フレックス',t:'sel',o:FLEX},{k:'weight',l:'重量',t:'num',u:'g'},{k:'torque',l:'トルク',t:'num'},
+    {k:'kick',l:'調子',t:'sel',o:KICK},{k:'note',l:'メモ（リシャフト理由・カット長など）',t:'area'}]},
+  grips:{ttl:'グリップ', hist:true, f:[
+    {k:'date',l:'交換日',t:'date'},{k:'maker',l:'メーカー',t:'text',dl:'dl-gmaker'},{k:'model',l:'モデル',t:'text'},
+    {k:'weight',l:'重量',t:'num',u:'g'},{k:'note',l:'メモ',t:'area'}]},
+  meas:{ttl:'実測', hist:true, f:[
+    {k:'date',l:'測定日',t:'date'},{k:'total',l:'総重量',t:'num',u:'g'},{k:'balance',l:'バランス（14インチ式）',t:'sel',o:BAL},
+    {k:'length',l:'長さ（60度法）',t:'sel',o:LEN,n:1},{k:'loft',l:'ロフト',t:'sel',o:LOFT,n:1},{k:'lie',l:'ライ',t:'sel',o:LIE,n:1},
+    {k:'cpm',l:'振動数',t:'num',u:'cpm'},{k:'headW',l:'ヘッド重量',t:'num',u:'g'},{k:'note',l:'メモ（鉛・調整など）',t:'area'}]},
+  play:{ttl:'ラウンド情報（想定距離・コメント）', hist:true, f:[
+    {k:'date',l:'日付',t:'date'},{k:'dist',l:'想定距離（キャリー）',t:'sel',o:DIST,n:1},{k:'note',l:'コメント',t:'area'}]},
+  buy:{ttl:'購入', hist:false, f:[
+    {k:'date',l:'購入日',t:'date'},{k:'shop',l:'購入先',t:'text',dl:'dl-shop'},{k:'cond',l:'新品／中古',t:'sel',o:COND},
+    {k:'rank',l:'中古ランク',t:'sel',o:RANK},{k:'price',l:'価格（税込）',t:'num',u:'円'},{k:'note',l:'メモ',t:'area'}]},
+  sell:{ttl:'売却', hist:false, f:[
+    {k:'date',l:'売却日',t:'date'},{k:'to',l:'売却先',t:'text',dl:'dl-shop'},{k:'price',l:'価格',t:'num',u:'円'},{k:'note',l:'メモ',t:'area'}]},
+};
+
+/* ---------- 共通 ---------- */
+const $=id=>document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function uid(p){ return p+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function nowIso(){ return new Date().toISOString(); }
+function toNum(v){ if(v==null) return null; v=String(v).replace(/[０-９．－]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[,\s円g]/g,''); if(v==='') return null; const n=parseFloat(v); return isNaN(n)?null:n; }
+function yen(n){ return n==null?'':Number(n).toLocaleString('ja-JP')+'円'; }
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.display='none',2600); }
+function optHtml(opts,val){ let found=false; const h=opts.map(o=>{ const v=Array.isArray(o)?o[0]:o, l=Array.isArray(o)?o[1]:o; const s=(val!=null&&String(val)===String(v)); if(s) found=true; return '<option value="'+esc(v)+'"'+(s?' selected':'')+'>'+esc(l)+'</option>'; }).join('');
+  return '<option value=""></option>'+(val!=null&&val!==''&&!found?'<option value="'+esc(val)+'" selected>'+esc(val)+'</option>':'')+h; }
+function balNum(b){ if(!b) return null; const m=/^([A-G])(\d(?:\.\d)?)$/.exec(String(b).trim().toUpperCase()); return m?('ABCDEFG'.indexOf(m[1])*10+parseFloat(m[2])):null; }
+function balStr(n){ if(n==null||isNaN(n)) return ''; const L='ABCDEFG'[Math.floor(n/10)]||'?'; return L+(Math.round((n%10)*10)/10); }
+
+/* ---------- 保存（IndexedDB） ---------- */
+let db=null, CLUBS=[], PHOTOS={}; // PHOTOS: clubId -> [{id,date,caption,url}]
+function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DBNAME,DBVER);
+  r.onupgradeneeded=()=>{ const d=r.result;
+    if(!d.objectStoreNames.contains('clubs')) d.createObjectStore('clubs',{keyPath:'id'});
+    if(!d.objectStoreNames.contains('photos')){ const s=d.createObjectStore('photos',{keyPath:'id'}); s.createIndex('clubId','clubId'); }
+    if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'k'}); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function tx(store,mode,fn){ return new Promise((res,rej)=>{ const t=db.transaction(store,mode), s=t.objectStore(store); let out; const r=fn(s); if(r) r.onsuccess=()=>{ out=r.result; }; t.oncomplete=()=>res(out); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error); }); }
+const getAll=st=>tx(st,'readonly',s=>s.getAll());
+const dbPut=(st,v)=>tx(st,'readwrite',s=>s.put(v));
+const dbDel=(st,k)=>tx(st,'readwrite',s=>s.delete(k));
+const dbGet=(st,k)=>tx(st,'readonly',s=>s.get(k));
+
+async function loadAll(){
+  CLUBS=await getAll('clubs');
+  Object.values(PHOTOS).flat().forEach(p=>URL.revokeObjectURL(p.url)); PHOTOS={};
+  (await getAll('photos')).forEach(p=>{ (PHOTOS[p.clubId]=PHOTOS[p.clubId]||[]).push({id:p.id,date:p.date,caption:p.caption||'',url:URL.createObjectURL(p.blob)}); });
+  Object.values(PHOTOS).forEach(a=>a.sort((x,y)=>(x.date||'').localeCompare(y.date||'')));
+  fillDatalists();
+}
+
+/* ---------- クラブ ---------- */
+function newClub(){ const t=nowIso(); return {id:uid('c'),schema:SCHEMA,name:'',nameAuto:true,kind:'I',num:'',maker:'',series:'',year:null,setName:'',loftSpec:null,lieSpec:null,status:'bag',
+  shafts:[],grips:[],meas:[],play:[],buy:{},sell:{},memo:'',createdAt:t,updatedAt:t,deletedAt:null}; }
+function autoName(c){ return [c.maker,c.num].filter(Boolean).join(' ')||'（名称未設定）'; }
+function nameOf(c){ return c.nameAuto?autoName(c):(c.name||autoName(c)); }
+function clubById(id){ return CLUBS.find(c=>c.id===id); }
+async function saveClub(c){ c.updatedAt=nowIso(); if(c.nameAuto) c.name=autoName(c); await dbPut('clubs',c);
+  const i=CLUBS.findIndex(x=>x.id===c.id); if(i<0) CLUBS.push(c); else CLUBS[i]=c; fillDatalists(); }
+function sortedHist(arr){ return (arr||[]).map((h,i)=>[h,i]).sort((a,b)=>((b[0].date||'').localeCompare(a[0].date||''))||(b[1]-a[1])).map(x=>x[0]); }
+function latest(arr){ return sortedHist(arr)[0]||null; }
+function kindIdx(k){ const i=KINDS.findIndex(x=>x[0]===k); return i<0?99:i; }
+function orderKey(c){ const m=latest(c.meas); const lf=c.loftSpec!=null?c.loftSpec:(m&&m.loft!=null?m.loft:null); const n=parseFloat(String(c.num||'').replace(/[^\d.]/g,'')); return [kindIdx(c.kind), lf!=null?lf:(isNaN(n)?999:n)]; }
+function sortClubs(a){ return a.slice().sort((x,y)=>{ const p=orderKey(x), q=orderKey(y); return (p[0]-q[0])||(p[1]-q[1])||nameOf(x).localeCompare(nameOf(y)); }); }
+function liveClubs(){ return CLUBS.filter(c=>!c.deletedAt); }
+
+function sumOf(sec,h){ if(!h) return '';
+  if(sec==='shafts') return [h.maker,h.series,h.flex].filter(Boolean).join(' ')+(h.weight!=null?' '+h.weight+'g':'')+(h.torque!=null?' / T'+h.torque:'')+(h.kick?' / '+h.kick+'調子':'');
+  if(sec==='grips') return [h.maker,h.model].filter(Boolean).join(' ')+(h.weight!=null?' '+h.weight+'g':'');
+  if(sec==='meas') return [h.total!=null?h.total+'g':'',h.balance||'',h.length!=null?h.length.toFixed(2)+'″':'',h.loft!=null?'ロフト'+h.loft+'°':'',h.lie!=null?'ライ'+h.lie+'°':'',h.cpm!=null?h.cpm+'cpm':'',h.headW!=null?'ヘッド'+h.headW+'g':''].filter(Boolean).join(' / ');
+  if(sec==='play') return (h.dist!=null?h.dist+'y':'');
+  if(sec==='buy') return [h.shop,h.cond,h.rank?'ランク'+h.rank:'',yen(h.price)].filter(Boolean).join(' / ');
+  if(sec==='sell') return [h.to,yen(h.price)].filter(Boolean).join(' / ');
+  return ''; }
+
+function fillDatalists(){
+  const uniq=a=>[...new Set(a.filter(Boolean))].sort((x,y)=>x.localeCompare(y));
+  const set=(id,a)=>{ $(id).innerHTML=a.map(v=>'<option value="'+esc(v)+'">').join(''); };
+  const L=liveClubs();
+  set('dl-num',NUMS);
+  set('dl-maker',uniq(MAKERS.concat(L.map(c=>c.maker))));
+  set('dl-series',uniq(L.map(c=>c.series)));
+  set('dl-smaker',uniq(L.flatMap(c=>c.shafts.map(s=>s.maker))));
+  set('dl-sseries',uniq(L.flatMap(c=>c.shafts.map(s=>s.series))));
+  set('dl-gmaker',uniq(L.flatMap(c=>c.grips.map(s=>s.maker))));
+  set('dl-shop',uniq(L.flatMap(c=>[c.buy&&c.buy.shop,c.sell&&c.sell.to])));
+}
+
+/* ---------- 画面切替 ---------- */
+let ST={view:'bag', id:null, flowX:'len', flowY:'total', flowSpare:false, flowPT:false};
+function go(v){ ST.view=v; ST.id=null; render(); window.scrollTo(0,0); }
+function openClub(id){ ST.view='club'; ST.id=id; render(); window.scrollTo(0,0); }
+function render(){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===(ST.view==='club'?'bag':ST.view==='trash'?'data':ST.view)));
+  const app=$('app');
+  if(ST.view==='bag') app.innerHTML=viewBag();
+  else if(ST.view==='club') app.innerHTML=viewClub();
+  else if(ST.view==='flow') app.innerHTML=viewFlow();
+  else if(ST.view==='data'){ app.innerHTML=viewData(); refreshDataStats(); }
+  else if(ST.view==='trash') app.innerHTML=viewTrash();
+  $('ttl').textContent=ST.view==='club'&&clubById(ST.id)?nameOf(clubById(ST.id)):'クラブ台帳';
+}
+
+/* ---------- バッグ ---------- */
+function clubCard(c){
+  const ph=(PHOTOS[c.id]||[])[0], s=latest(c.shafts), m=latest(c.meas), p=latest(c.play);
+  const th=ph?'<img class="thumb" src="'+ph.url+'" alt="">':'<div class="thumb">'+esc(c.num||c.kind)+'</div>';
+  const l1=[c.series,c.year?c.year+'年':''].filter(Boolean).join(' / ');
+  return '<div class="card club" onclick="openClub(\''+c.id+'\')">'+th+'<div class="body"><div class="nm">'+esc(nameOf(c))+'</div>'+
+    (l1?'<div class="ln">'+esc(l1)+'</div>':'')+(s?'<div class="ln">シャフト: '+esc(sumOf('shafts',s))+'</div>':'')+
+    (m?'<div class="ln">実測: '+esc(sumOf('meas',m))+'</div>':'')+(p&&p.dist!=null?'<div class="ln">想定 '+p.dist+'y</div>':'')+'</div></div>';
+}
+function viewBag(){
+  const L=sortClubs(liveClubs()); const nBag=L.filter(c=>c.status==='bag').length;
+  let h='<div class="row" style="margin:4px 0 6px"><span>バッグ <b>'+nBag+'</b> 本</span>'+(nBag>14?'<span class="badge w">14本を超えています</span>':'')+'<span style="flex:1"></span><button class="pri" onclick="addClub()">＋ クラブを追加</button></div>';
+  if(!L.length) return h+'<div class="card muted">まだクラブがありません。「＋ クラブを追加」から登録してください。</div>';
+  STATUS.forEach(([k,lab])=>{ const a=L.filter(c=>c.status===k); if(!a.length) return;
+    const body=a.map(clubCard).join('');
+    h+= (k==='bag'||k==='spare') ? '<h2>'+lab+'（'+a.length+'）</h2>'+body : '<details><summary>'+lab+'（'+a.length+'）</summary>'+body+'</details>'; });
+  return h;
+}
+async function addClub(){ const c=newClub(); await saveClub(c); openClub(c.id); }
+
+/* ---------- クラブ詳細 ---------- */
+function fld(f,val,attr){ attr=attr||''; const lab='<span>'+esc(f.l)+(f.u?'（'+esc(f.u)+'）':'')+'</span>';
+  let inp;
+  if(f.t==='date') inp='<input type="date" name="'+f.k+'" value="'+esc(val||'')+'" '+attr+'>';
+  else if(f.t==='sel') inp='<select name="'+f.k+'" '+attr+'>'+optHtml(f.o,val)+'</select>';
+  else if(f.t==='area') inp='<textarea name="'+f.k+'" '+attr+'>'+esc(val||'')+'</textarea>';
+  else if(f.t==='num') inp='<input name="'+f.k+'" inputmode="decimal" value="'+esc(val==null?'':val)+'" '+attr+'>';
+  else inp='<input name="'+f.k+'" value="'+esc(val||'')+'"'+(f.dl?' list="'+f.dl+'"':'')+' autocomplete="off" '+attr+'>';
+  return '<label class="f">'+lab+inp+'</label>'; }
+
+const BASIC=[
+  {k:'kind',l:'種別',t:'sel',o:KINDS},{k:'num',l:'番手',t:'text',dl:'dl-num'},
+  {k:'maker',l:'メーカー',t:'text',dl:'dl-maker'},{k:'series',l:'シリーズ・モデル',t:'text',dl:'dl-series'},
+  {k:'year',l:'発売年',t:'sel',o:YEARS,n:1},{k:'setName',l:'セット名（アイアンセット等）',t:'text'},
+  {k:'loftSpec',l:'ロフト（カタログ）',t:'sel',o:LOFT,n:1},{k:'lieSpec',l:'ライ（カタログ）',t:'sel',o:LIE,n:1},
+  {k:'status',l:'状態',t:'sel',o:STATUS}];
+
+function viewClub(){
+  const c=clubById(ST.id); if(!c) return '<p>クラブが見つかりません。</p><button onclick="go(\'bag\')">戻る</button>';
+  let h='<div class="row" style="margin-bottom:8px"><button onclick="go(\'bag\')">← 一覧</button><span style="flex:1"></span><span class="xs muted">ID: '+esc(c.id)+'</span></div>';
+  // 名前
+  h+='<div class="card"><label class="f"><span>名前 '+(c.nameAuto?'<span class="badge">自動（メーカー＋番手）</span>':'<span class="badge">手入力</span>')+'</span>'+
+     '<input id="cname" value="'+esc(nameOf(c))+'" onchange="setName(this.value)"></label>'+
+     (c.nameAuto?'':'<button class="sm" onclick="resetName()">自動に戻す</button>')+'</div>';
+  // 基本
+  h+='<h2>基本情報</h2><div class="card grid2">'+BASIC.map(f=>fld(f,c[f.k],'onchange="setBasic(\''+f.k+'\',this.value)"')).join('')+'</div>';
+  // 履歴
+  ['shafts','grips','meas','play'].forEach(sec=>{ const d=F[sec], arr=sortedHist(c[sec]);
+    h+='<h2>'+esc(d.ttl)+'<span class="sp"></span><button class="sm" onclick="editHist(\''+sec+'\',null)">＋ 追加</button></h2><div class="card">';
+    if(!arr.length) h+='<div class="muted sm">記録なし</div>';
+    arr.forEach((x,i)=>{ const note=x.note?'<div class="xs muted" style="white-space:pre-wrap">'+esc(x.note)+'</div>':'';
+      h+='<div class="hist"><div class="d">'+esc(x.date||'日付なし')+(i===0?'<div class="cur">現在</div>':'')+'</div><div class="t">'+esc(sumOf(sec,x)||'')+note+'</div><button class="sm" onclick="editHist(\''+sec+'\',\''+x.id+'\')">編集</button></div>'; });
+    h+='</div>'; });
+  // 購入・売却
+  h+='<h2>購入・売却</h2><div class="card">';
+  ['buy','sell'].forEach(sec=>{ const x=c[sec]||{}; const s=sumOf(sec,x);
+    h+='<div class="hist"><div class="d">'+esc(F[sec].ttl)+'<br>'+esc(x.date||'')+'</div><div class="t">'+(s?esc(s):'<span class="muted">未入力</span>')+(x.note?'<div class="xs muted" style="white-space:pre-wrap">'+esc(x.note)+'</div>':'')+'</div><button class="sm" onclick="editHist(\''+sec+'\',null)">編集</button></div>'; });
+  if(c.buy&&c.buy.price!=null&&c.sell&&c.sell.price!=null) h+='<div class="sm" style="margin-top:6px">実質コスト（購入−売却）: <b>'+yen(c.buy.price-c.sell.price)+'</b></div>';
+  h+='</div>';
+  // 写真
+  const ph=PHOTOS[c.id]||[];
+  h+='<h2>写真（'+ph.length+'）<span class="sp"></span><label class="sm" style="cursor:pointer"><span class="badge" style="padding:5px 10px">＋ 追加</span><input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos(this.files)"></label></h2>';
+  h+='<div class="card">'+(ph.length?'<div class="photos">'+ph.map(p=>'<img src="'+p.url+'" alt="" onclick="viewPhoto(\''+p.id+'\')">').join('')+'</div>':'<div class="muted sm">写真なし（刻印・シリアル・ソールの傷・購入時の状態などを残しておけます）</div>')+'</div>';
+  // メモ
+  h+='<h2>メモ</h2><div class="card"><textarea onchange="setBasic(\'memo\',this.value)" placeholder="Webで調べにくい情報（個体差・刻印・前オーナー情報など）">'+esc(c.memo||'')+'</textarea></div>';
+  h+='<div class="row" style="margin-top:18px"><button onclick="dupClub()">このクラブを複製</button><span style="flex:1"></span><button class="warn" onclick="trashClub()">ゴミ箱へ移す</button></div>';
+  h+='<p class="xs muted">複製は基本情報とシャフト・グリップだけを写します（実測・ラウンド情報・購入売却・写真は写しません）。</p>';
+  return h;
+}
+async function setBasic(k,v){ const c=clubById(ST.id); if(!c) return; const f=BASIC.find(x=>x.k===k);
+  c[k]=(f&&f.n)?toNum(v):v; await saveClub(c);
+  if(c.nameAuto){ $('cname').value=nameOf(c); } $('ttl').textContent=nameOf(c); toast('保存しました'); }
+async function setName(v){ const c=clubById(ST.id); v=v.trim(); if(!v){ c.nameAuto=true; } else { c.nameAuto=false; c.name=v; } await saveClub(c); render(); toast('保存しました'); }
+async function resetName(){ const c=clubById(ST.id); c.nameAuto=true; await saveClub(c); render(); }
+
+function editHist(sec,hid){
+  const c=clubById(ST.id), d=F[sec];
+  let x; if(d.hist){ x=hid?c[sec].find(h=>h.id===hid):{date:today()}; } else { x=c[sec]||{}; }
+  if(!x) return;
+  if(!d.hist && !x.date) x=Object.assign({date:today()},x);
+  let h='<h3>'+esc(d.ttl)+(d.hist?(hid?'（編集）':'（追加）'):'')+'</h3><form id="hf" onsubmit="return false">'+d.f.map(f=>fld(f,x[f.k])).join('')+'</form>';
+  h+='<div class="row" style="margin-top:6px"><button class="pri" onclick="saveHist(\''+sec+'\','+(hid?'\''+hid+'\'':'null')+')">保存</button><button onclick="closeModal()">キャンセル</button><span style="flex:1"></span>'+
+     ((d.hist&&hid)||(!d.hist&&Object.keys(c[sec]||{}).length)?'<button class="warn sm" onclick="delHist(\''+sec+'\','+(hid?'\''+hid+'\'':'null')+')">この記録を消す</button>':'')+'</div>';
+  if(sec==='meas') h+='<p class="xs muted">リシャフト・鉛・グリップ交換のあとは、上書きせず新しい日付で追加してください（変化を比べられます）。</p>';
+  openModal(h);
+}
+async function saveHist(sec,hid){
+  const c=clubById(ST.id), d=F[sec], fm=$('hf'), o={};
+  d.f.forEach(f=>{ const v=fm.elements[f.k].value; o[f.k]=(f.t==='num'||f.n)?toNum(v):(v.trim?v.trim():v); if(o[f.k]==='') o[f.k]=(f.t==='num'||f.n)?null:''; });
+  if(d.f.some(f=>f.t==='num'&&fm.elements[f.k].value.trim()!==''&&o[f.k]==null)){ alert('数値の欄に数字以外が入っています。'); return; }
+  if(d.hist){ if(hid){ const i=c[sec].findIndex(h=>h.id===hid); o.id=hid; c[sec][i]=o; } else { o.id=uid('h'); c[sec].push(o); } }
+  else c[sec]=o;
+  await saveClub(c); closeModal(); render(); toast('保存しました');
+}
+async function delHist(sec,hid){
+  if(!confirm('この記録を消します。よろしいですか？\n（消したあとはバックアップからしか戻せません）')) return;
+  const c=clubById(ST.id); if(F[sec].hist) c[sec]=c[sec].filter(h=>h.id!==hid); else c[sec]={};
+  await saveClub(c); closeModal(); render(); toast('消しました');
+}
+async function dupClub(){ const s=clubById(ST.id), c=newClub();
+  ['kind','num','maker','series','year','setName','loftSpec','lieSpec','status','nameAuto'].forEach(k=>c[k]=s[k]);
+  if(!s.nameAuto) c.name=s.name+'（複製）';
+  c.shafts=JSON.parse(JSON.stringify(s.shafts)).map(h=>Object.assign(h,{id:uid('h')}));
+  c.grips=JSON.parse(JSON.stringify(s.grips)).map(h=>Object.assign(h,{id:uid('h')}));
+  await saveClub(c); openClub(c.id); toast('複製しました。番手を直してください'); }
+async function trashClub(){ const c=clubById(ST.id);
+  if(!confirm('「'+nameOf(c)+'」をゴミ箱へ移します。\n（データ › ゴミ箱 からいつでも戻せます）')) return;
+  c.deletedAt=nowIso(); await saveClub(c); go('bag'); toast('ゴミ箱へ移しました'); }
+
+/* ---------- 写真 ---------- */
+async function shrink(file){ const MAX=1600;
+  let bmp; try{ bmp=await createImageBitmap(file,{imageOrientation:'from-image'}); }catch(e){ bmp=await createImageBitmap(file); }
+  const r=Math.min(1,MAX/Math.max(bmp.width,bmp.height)), cv=document.createElement('canvas');
+  cv.width=Math.round(bmp.width*r); cv.height=Math.round(bmp.height*r); cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
+  return await new Promise(res=>cv.toBlob(res,'image/jpeg',0.85)); }
+async function addPhotos(files){ const c=clubById(ST.id); let n=0;
+  for(const f of files){ try{ const blob=await shrink(f); await dbPut('photos',{id:uid('p'),clubId:c.id,blob,date:today(),caption:'',createdAt:nowIso()}); n++; }catch(e){ alert('読み込めない画像がありました: '+f.name); } }
+  await loadAll(); render(); toast(n+'枚追加しました'); }
+function findPhoto(pid){ for(const k in PHOTOS){ const p=PHOTOS[k].find(x=>x.id===pid); if(p) return p; } return null; }
+function viewPhoto(pid){ const p=findPhoto(pid);
+  openModal('<img src="'+p.url+'" style="width:100%;border-radius:8px">'+
+    '<label class="f"><span>撮影日・登録日</span><input type="date" id="pdate" value="'+esc(p.date||'')+'"></label>'+
+    '<label class="f"><span>説明</span><input id="pcap" value="'+esc(p.caption)+'" placeholder="例: ソールの傷／シリアル刻印"></label>'+
+    '<div class="row"><button class="pri" onclick="savePhoto(\''+pid+'\')">保存</button><button onclick="closeModal()">閉じる</button><span style="flex:1"></span><button class="warn sm" onclick="delPhoto(\''+pid+'\')">写真を削除</button></div>'+
+    (p.caption?'':'')); }
+async function savePhoto(pid){ const r=await dbGet('photos',pid); r.date=$('pdate').value; r.caption=$('pcap').value.trim(); await dbPut('photos',r); await loadAll(); closeModal(); render(); toast('保存しました'); }
+async function delPhoto(pid){ if(!confirm('この写真を削除します。元に戻せません（バックアップに入っていれば戻せます）。')) return;
+  await dbDel('photos',pid); await loadAll(); closeModal(); render(); toast('削除しました'); }
+
+/* ---------- 重量フロー ---------- */
+const YM={ total:{l:'総重量',u:'g',tol:5,get:m=>m.total}, balance:{l:'バランス',u:'',tol:1.5,get:m=>balNum(m.balance),fmt:balStr},
+  cpm:{l:'振動数',u:'cpm',tol:8,get:m=>m.cpm}, loft:{l:'実測ロフト',u:'°',tol:1.5,get:m=>m.loft}, lie:{l:'実測ライ',u:'°',tol:1,get:m=>m.lie} };
+function fit(pts){ const n=pts.length; if(n<3) return null; let sx=0,sy=0,sxx=0,sxy=0; pts.forEach(p=>{sx+=p.x;sy+=p.y;sxx+=p.x*p.x;sxy+=p.x*p.y;});
+  const den=n*sxx-sx*sx; if(!den) return null; const a=(n*sxy-sx*sy)/den, b=(sy-a*sx)/n; return {a,b,f:x=>a*x+b}; }
+function setFlow(k,v){ ST[k]=v; render(); }
+function viewFlow(){
+  const ym=YM[ST.flowY];
+  let L=sortClubs(liveClubs().filter(c=>c.status==='bag'||(ST.flowSpare&&c.status==='spare')));
+  if(!ST.flowPT) L=L.filter(c=>c.kind!=='PT');
+  const pts=[], miss=[];
+  L.forEach((c,i)=>{ const m=latest(c.meas)||{}; const y=ym.get(m); const x=ST.flowX==='len'?m.length:i;
+    if(y==null||x==null) miss.push(c); else pts.push({c,x,y}); });
+  let h='<div class="card grid2">'+
+    '<label class="f"><span>横軸</span><select onchange="setFlow(\'flowX\',this.value)">'+optHtml([['len','長さ（実測）'],['ord','番手順']],ST.flowX).replace('<option value=""></option>','')+'</select></label>'+
+    '<label class="f"><span>縦軸</span><select onchange="setFlow(\'flowY\',this.value)">'+optHtml(Object.keys(YM).map(k=>[k,YM[k].l]),ST.flowY).replace('<option value=""></option>','')+'</select></label>'+
+    '<label class="row sm"><input type="checkbox" style="width:auto" '+(ST.flowSpare?'checked':'')+' onchange="setFlow(\'flowSpare\',this.checked)">控えも含める</label>'+
+    '<label class="row sm"><input type="checkbox" style="width:auto" '+(ST.flowPT?'checked':'')+' onchange="setFlow(\'flowPT\',this.checked)">パターも含める</label></div>';
+  if(pts.length<2){ return h+'<div class="card muted">図にするには、バッグのクラブ2本以上に「実測」の'+ym.l+(ST.flowX==='len'?'と長さ':'')+'を入れてください。</div>'+missHtml(miss); }
+  const ft=fit(pts); pts.forEach(p=>{ p.res=ft?p.y-ft.f(p.x):null; p.out=ft?Math.abs(p.res)>ym.tol:false; });
+  // SVG
+  const W=360,H=250,pl=42,pr=12,pt=14,pb=30;
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y).concat(ft?[ft.f(Math.min(...xs)),ft.f(Math.max(...xs))]:[]);
+  let x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const px=(x1-x0)||1, py=(y1-y0)||1; x0-=px*.06; x1+=px*.06; y0-=py*.12; y1+=py*.12;
+  const sx=x=>pl+(x-x0)/(x1-x0)*(W-pl-pr), sy=y=>H-pb-(y-y0)/(y1-y0)*(H-pt-pb);
+  let g='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="重量フロー">';
+  for(let i=0;i<=4;i++){ const yv=y0+(y1-y0)*i/4, yy=sy(yv); g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/><text x="'+(pl-4)+'" y="'+(yy+3)+'" text-anchor="end">'+esc(ym.fmt?ym.fmt(yv):Math.round(yv*10)/10)+'</text>'; }
+  if(ST.flowX==='len'){ for(let i=0;i<=4;i++){ const xv=x0+(x1-x0)*i/4; g+='<text x="'+sx(xv)+'" y="'+(H-pb+14)+'" text-anchor="middle">'+xv.toFixed(1)+'″</text>'; } }
+  if(ft){ const a=Math.min(...xs), b=Math.max(...xs); g+='<line x1="'+sx(a)+'" y1="'+sy(ft.f(a))+'" x2="'+sx(b)+'" y2="'+sy(ft.f(b))+'" stroke="var(--accent)" stroke-dasharray="5 4" stroke-width="1.5"/>'; }
+  pts.forEach(p=>{ const cx=sx(p.x), cy=sy(p.y), col=p.out?'var(--warn)':'var(--accent)';
+    g+='<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="'+col+'"><title>'+esc(nameOf(p.c))+'</title></circle><text class="lbl" x="'+cx+'" y="'+(cy-8)+'" text-anchor="middle">'+esc(p.c.num||nameOf(p.c))+'</text>';
+    if(ST.flowX==='ord') g+='<text x="'+cx+'" y="'+(H-pb+14)+'" text-anchor="middle">'+esc(p.c.num||'')+'</text>'; });
+  g+='</svg>';
+  h+='<div class="card">'+g+'<div class="xs muted">点線＝近似直線。近似線から'+ym.tol+(ym.u||'ポイント')+'を超えて外れたクラブを<span style="color:var(--warn)">赤</span>で示します（許容幅は仮の値です）。</div></div>';
+  h+='<div class="card"><table><tr><th>クラブ</th><th>'+(ST.flowX==='len'?'長さ':'順')+'</th><th>'+esc(ym.l)+'</th><th>近似線との差</th></tr>'+
+    pts.map(p=>'<tr><td><a href="#" onclick="openClub(\''+p.c.id+'\');return false">'+esc(nameOf(p.c))+'</a></td><td>'+(ST.flowX==='len'?p.x.toFixed(2)+'″':'')+'</td><td>'+esc(ym.fmt?ym.fmt(p.y):p.y)+'</td><td class="'+(p.out?'out':'')+'">'+(p.res==null?'':(p.res>0?'+':'')+(Math.round(p.res*10)/10)+(ym.u||''))+'</td></tr>').join('')+'</table></div>';
+  return h+missHtml(miss);
+}
+function missHtml(m){ return m.length?'<div class="xs muted">実測が足りず図に入っていないクラブ: '+m.map(c=>esc(nameOf(c))).join('、')+'</div>':''; }
+
+/* ---------- データ（バックアップ・復元・CSV・ゴミ箱） ---------- */
+function viewData(){
+  const nT=CLUBS.filter(c=>c.deletedAt).length;
+  return '<h2>バックアップ</h2><div class="card"><div id="dstat" class="sm muted" style="margin-bottom:8px">集計中…</div>'+
+    '<div class="row"><button class="pri" onclick="exportJSON()">バックアップを書き出す（写真込み）</button>'+
+    '<label style="cursor:pointer"><span class="badge" style="padding:8px 12px">バックアップを読み込む</span><input type="file" accept="application/json,.json" style="display:none" onchange="importJSON(this.files[0]);this.value=\'\'"></label></div>'+
+    '<p class="xs muted">データはこの端末の中（ブラウザ）にだけ保存されています。端末の故障・ブラウザのデータ消去に備えて、ときどき書き出してください。読み込みは既定で「別のIDとして追加」し、今あるデータは消しません。</p></div>'+
+    '<h2>一覧の書き出し</h2><div class="card"><button onclick="exportCSV()">CSVを書き出す（閲覧用）</button><p class="xs muted">各クラブの現在の値（最新の履歴）を1行にまとめます。CSVからの読み込みはできません。</p></div>'+
+    '<h2>ゴミ箱</h2><div class="card"><button onclick="ST.view=\'trash\';render()">ゴミ箱を開く（'+nT+'）</button></div>'+
+    '<p class="xs muted">クラブ台帳 v'+APP_VERSION+' ／ 保存形式 schema '+SCHEMA+'</p>';
+}
+async function refreshDataStats(){ const el=$('dstat'); if(!el) return;
+  const nC=liveClubs().length, nP=Object.values(PHOTOS).reduce((s,a)=>s+a.length,0), lb=await dbGet('meta','lastBackup');
+  let est=''; try{ const e=await navigator.storage.estimate(); est=' ／ 使用量 約'+(e.usage/1048576).toFixed(1)+'MB'; }catch(e){}
+  el.innerHTML='クラブ '+nC+'本 ／ 写真 '+nP+'枚'+est+'<br>最後に書き出した日時: '+(lb?esc(new Date(lb.v).toLocaleString('ja-JP')):'<b style="color:var(--warn)">まだ書き出していません</b>'); }
+function stamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes()); }
+function download(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); }
+function blobToDataURL(b){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsDataURL(b); }); }
+async function exportJSON(){
+  const clubs=await getAll('clubs'), raw=await getAll('photos'), photos=[];
+  for(const p of raw) photos.push({id:p.id,clubId:p.clubId,date:p.date,caption:p.caption||'',createdAt:p.createdAt,dataUrl:await blobToDataURL(p.blob)});
+  const obj={app:'club-ledger',schema:SCHEMA,appVersion:APP_VERSION,exportedAt:nowIso(),clubs,photos};
+  download(new Blob([JSON.stringify(obj)],{type:'application/json'}),'club-ledger_backup_'+stamp()+'.json');
+  await dbPut('meta',{k:'lastBackup',v:nowIso()}); refreshDataStats(); toast('書き出しました（'+clubs.length+'本・写真'+photos.length+'枚）'); }
+let PENDING=null;
+async function importJSON(file){ if(!file) return;
+  let o; try{ o=JSON.parse(await file.text()); }catch(e){ alert('JSONとして読めませんでした。'); return; }
+  if(!o||o.app!=='club-ledger'||!Array.isArray(o.clubs)){ alert('クラブ台帳のバックアップではありません。'); return; }
+  if((o.schema||0)>SCHEMA){ alert('このバックアップは新しい版のアプリで作られています（schema '+o.schema+'）。アプリを更新してから読み込んでください。'); return; }
+  PENDING=o; const dup=o.clubs.filter(c=>clubById(c.id)).length;
+  openModal('<h3>バックアップの読み込み</h3><p class="sm">'+esc(file.name)+'<br>クラブ '+o.clubs.length+'本 ／ 写真 '+(o.photos||[]).length+'枚（書き出し: '+esc(o.exportedAt?new Date(o.exportedAt).toLocaleString('ja-JP'):'不明')+'）</p>'+
+    '<div class="notice">今あるデータは消えません。'+(dup?'このうち '+dup+'本 は、今ある同じIDのクラブです。':'')+'</div>'+
+    '<div style="display:grid;gap:8px;margin-top:12px"><button class="pri" onclick="doImport(\'add\')">別のIDとして追加する（推奨）</button>'+
+    '<button onclick="doImport(\'over\')">同じIDのクラブは上書きする</button><button onclick="PENDING=null;closeModal()">キャンセル</button></div>'+
+    '<p class="xs muted">上書きを選ぶ前に、今のデータのバックアップを書き出しておくことをおすすめします。上書きでも、バックアップに無いクラブは消えません。</p>'); }
+async function doImport(mode){ const o=PENDING; PENDING=null; if(!o) return;
+  if(mode==='over'&&!confirm('同じIDのクラブと写真を、バックアップの内容で上書きします。よろしいですか？')) return;
+  const map={}; let nc=0, np=0;
+  for(const src of o.clubs){ const c=Object.assign(newClub(),JSON.parse(JSON.stringify(src)));
+    ['shafts','grips','meas','play'].forEach(k=>{ if(!Array.isArray(c[k])) c[k]=[]; c[k].forEach(h=>{ if(!h.id) h.id=uid('h'); }); });
+    if(mode==='add'){ map[src.id]=uid('c'); c.id=map[src.id]; } else map[src.id]=src.id;
+    c.schema=SCHEMA; await dbPut('clubs',c); nc++; }
+  for(const p of (o.photos||[])){ if(!map[p.clubId]) continue; try{ const blob=await (await fetch(p.dataUrl)).blob();
+    await dbPut('photos',{id:mode==='add'?uid('p'):p.id,clubId:map[p.clubId],blob,date:p.date||'',caption:p.caption||'',createdAt:p.createdAt||nowIso()}); np++; }catch(e){} }
+  await loadAll(); closeModal(); go('bag'); toast((mode==='add'?'追加':'上書き')+'しました（'+nc+'本・写真'+np+'枚）'); }
+function exportCSV(){
+  const head=['ID','名前','状態','種別','番手','メーカー','シリーズ','発売年','セット名','ロフト(カタログ)','ライ(カタログ)','シャフトメーカー','シャフト','フレックス','シャフト重量','総重量','バランス','長さ','実測ロフト','実測ライ','振動数','実測日','想定距離','購入日','購入先','新品/中古','購入価格','売却日','売却価格','メモ'];
+  const st=k=>(STATUS.find(s=>s[0]===k)||[,''])[1], kd=k=>(KINDS.find(s=>s[0]===k)||[,k])[1];
+  const rows=sortClubs(liveClubs()).map(c=>{ const s=latest(c.shafts)||{}, m=latest(c.meas)||{}, p=latest(c.play)||{}, b=c.buy||{}, e=c.sell||{};
+    return [c.id,nameOf(c),st(c.status),kd(c.kind),c.num,c.maker,c.series,c.year,c.setName,c.loftSpec,c.lieSpec,s.maker,s.series,s.flex,s.weight,m.total,m.balance,m.length,m.loft,m.lie,m.cpm,m.date,p.dist,b.date,b.shop,b.cond,b.price,e.date,e.price,c.memo]; });
+  const q=v=>{ v=v==null?'':String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  download(new Blob(['﻿'+[head].concat(rows).map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv'}),'club-ledger_list_'+stamp()+'.csv'); }
+function viewTrash(){ const a=CLUBS.filter(c=>c.deletedAt);
+  return '<div class="row" style="margin-bottom:8px"><button onclick="go(\'data\')">← データ</button></div><h2>ゴミ箱（'+a.length+'）</h2>'+
+    (a.length?a.map(c=>'<div class="card row"><div style="flex:1"><b>'+esc(nameOf(c))+'</b><div class="xs muted">移した日時: '+esc(new Date(c.deletedAt).toLocaleString('ja-JP'))+'</div></div><button onclick="restoreClub(\''+c.id+'\')">元に戻す</button></div>').join(''):'<div class="card muted">ゴミ箱は空です。</div>'); }
+async function restoreClub(id){ const c=clubById(id); c.deletedAt=null; await saveClub(c); render(); toast('元に戻しました'); }
+
+/* ---------- モーダル ---------- */
+function openModal(h){ $('sheet').innerHTML=h; $('modal').classList.add('on'); }
+function closeModal(){ $('modal').classList.remove('on'); $('sheet').innerHTML=''; }
+
+/* ---------- アプリ更新（同意制） ---------- */
+function setupSW(){ if(!('serviceWorker' in navigator)||location.protocol==='file:') return;
+  let reloading=false;
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    const show=w=>{ const u=$('upd'); u.innerHTML='新しいバージョンがあります（更新前にバックアップ推奨） <button class="sm" onclick="go(\'data\')">バックアップへ</button> <button class="sm pri" id="updbtn">更新する</button>'; u.classList.add('on');
+      $('updbtn').onclick=()=>{ reloading=true; w.postMessage({type:'SKIP_WAITING'}); }; };
+    if(reg.waiting&&navigator.serviceWorker.controller) show(reg.waiting);
+    reg.addEventListener('updatefound',()=>{ const w=reg.installing; w.addEventListener('statechange',()=>{ if(w.state==='installed'&&navigator.serviceWorker.controller) show(w); }); });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(reloading) location.reload(); });
+}
+
+/* ---------- 起動 ---------- */
+(async function(){
+  $('ver').textContent=APP_VERSION;
+  try{ db=await idbOpen(); await loadAll(); }
+  catch(e){ $('app').innerHTML='<div class="card notice">端末内の保存領域を開けませんでした（'+esc(e&&e.message||e)+'）。プライベートブラウズでは使えないことがあります。</div>'; return; }
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  render(); setupSW();
+})();
+</script>
+</body>
+</html>
