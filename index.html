@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.1.2 2026-11-18 -->
+<!-- APP_BUILD 0.2.0 2026-11-18 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -91,7 +91,7 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.1.2';
+const APP_VERSION='0.2.0';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
@@ -217,7 +217,7 @@ function render(){
   if(ST.view==='bag') app.innerHTML=viewBag();
   else if(ST.view==='club') app.innerHTML=viewClub();
   else if(ST.view==='flow') app.innerHTML=viewFlow();
-  else if(ST.view==='data'){ app.innerHTML=viewData(); refreshDataStats(); }
+  else if(ST.view==='data'){ app.innerHTML=viewData(); refreshDataStats(); refreshAiStat(); }
   else if(ST.view==='trash') app.innerHTML=viewTrash();
   $('ttl').textContent=ST.view==='club'&&clubById(ST.id)?nameOf(clubById(ST.id)):'クラブ台帳';
 }
@@ -233,7 +233,7 @@ function clubCard(c){
 }
 function viewBag(){
   const L=sortClubs(liveClubs()); const nBag=L.filter(c=>c.status==='bag').length;
-  let h='<div class="row" style="margin:4px 0 6px"><span>バッグ <b>'+nBag+'</b> 本</span>'+(nBag>14?'<span class="badge w">14本を超えています</span>':'')+'<span style="flex:1"></span><button class="pri" onclick="addClub()">＋ クラブを追加</button></div>';
+  let h='<div class="row" style="margin:4px 0 6px"><span>バッグ <b>'+nBag+'</b> 本</span>'+(nBag>14?'<span class="badge w">14本を超えています</span>':'')+'<span style="flex:1"></span><label style="cursor:pointer"><span class="badge" style="padding:8px 12px">写真から追加</span><input type="file" accept="image/*" multiple style="display:none" onchange="addClubFromPhotos(this.files)"></label><button class="pri" onclick="addClub()">＋ クラブを追加</button></div>';
   if(!L.length) return h+'<div class="card muted">まだクラブがありません。「＋ クラブを追加」から登録してください。</div>';
   STATUS.forEach(([k,lab])=>{ const a=L.filter(c=>c.status===k); if(!a.length) return;
     const body=a.map(clubCard).join('');
@@ -283,7 +283,7 @@ function viewClub(){
   h+='</div>';
   // 写真
   const ph=PHOTOS[c.id]||[];
-  h+='<h2>写真（'+ph.length+'）<span class="sp"></span><label class="sm" style="cursor:pointer"><span class="badge" style="padding:5px 10px">＋ 追加</span><input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos(this.files)"></label></h2>';
+  h+='<h2>写真（'+ph.length+'）<span class="sp"></span><button class="sm" onclick="aiStart()">写真から推定</button><label class="sm" style="cursor:pointer"><span class="badge" style="padding:5px 10px">＋ 追加</span><input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos(this.files)"></label></h2>';
   h+='<div class="card">'+(ph.length?'<div class="photos">'+ph.map(p=>'<img src="'+p.url+'" alt="" onclick="viewPhoto(\''+p.id+'\')">').join('')+'</div>':'<div class="muted sm">写真なし（刻印・シリアル・ソールの傷・購入時の状態などを残しておけます）</div>')+'</div>';
   // メモ
   h+='<h2>メモ</h2><div class="card"><textarea onchange="setBasic(\'memo\',this.value)" placeholder="Webで調べにくい情報（個体差・刻印・前オーナー情報など）">'+esc(c.memo||'')+'</textarea></div>';
@@ -401,6 +401,11 @@ function viewData(){
     '<p class="xs muted">データはこの端末の中（ブラウザ）にだけ保存されています。端末の故障・ブラウザのデータ消去に備えて、ときどき書き出してください。読み込みは既定で「別のIDとして追加」し、今あるデータは消しません。</p></div>'+
     '<h2>一覧の書き出し</h2><div class="card"><button onclick="exportCSV()">CSVを書き出す（閲覧用）</button><p class="xs muted">各クラブの現在の値（最新の履歴）を1行にまとめます。CSVからの読み込みはできません。</p></div>'+
     '<h2>ゴミ箱</h2><div class="card"><button onclick="ST.view=\'trash\';render()">ゴミ箱を開く（'+nT+'）</button></div>'+
+    '<h2>写真から推定（AI）</h2><div class="card"><div id="aistat" class="sm" style="margin-bottom:8px">確認中…</div>'+
+    '<label class="f"><span>Gemini の APIキー（登録・入れ替え）</span><input id="aikey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>'+
+    '<div class="row"><button class="pri" id="aikeybtn" onclick="saveAiKey()">保存して接続を確かめる</button><button onclick="delAiKey()">キーを消す</button></div>'+
+    '<p class="xs muted">クラブ詳細の「写真から推定」で、写真からメーカー・モデル・番手・シャフトなどを推定します。キーは Google AI Studio（https://aistudio.google.com/apikey）で作れます。'+
+    'キーはこの端末の中にだけ保存し、バックアップには含めません（端末ごとに登録が要ります）。推定するときは、選んだ写真が Google の Gemini API に送られます。無料枠では、送った内容が Google のサービス改善に使われることがあります（Google の規約による）。</p></div>'+
     '<p class="xs muted">クラブ台帳 v'+APP_VERSION+' ／ 保存形式 schema '+SCHEMA+'</p>';
 }
 async function refreshDataStats(){ const el=$('dstat'); if(!el) return;
@@ -448,6 +453,166 @@ function viewTrash(){ const a=CLUBS.filter(c=>c.deletedAt);
   return '<div class="row" style="margin-bottom:8px"><button onclick="go(\'data\')">← データ</button></div><h2>ゴミ箱（'+a.length+'）</h2>'+
     (a.length?a.map(c=>'<div class="card row"><div style="flex:1"><b>'+esc(nameOf(c))+'</b><div class="xs muted">移した日時: '+esc(new Date(c.deletedAt).toLocaleString('ja-JP'))+'</div></div><button onclick="restoreClub(\''+c.id+'\')">元に戻す</button></div>').join(''):'<div class="card muted">ゴミ箱は空です。</div>'); }
 async function restoreClub(id){ const c=clubById(id); c.deletedAt=null; await saveClub(c); render(); toast('元に戻しました'); }
+
+/* ---------- 写真から推定（Gemini） ----------
+   キーは meta ストア（geminiKey）に端末内だけで保存。バックアップ（clubs/photos のみ）には含めない。
+   モデル名はハードコードせず、一覧から選ぶ（-latest を優先。404 なら次へ）。推定値は候補として見せ、選んだ項目だけ反映する。 */
+const GAPI='https://generativelanguage.googleapis.com/v1beta/';
+const nStr=v=>{ v=String(v==null?'':v).trim(); return v&&!/^(null|none|unknown|不明|n\/a)$/i.test(v)?v:null; };
+const nStep=st=>v=>{ const n=toNum(nStr(v)); return n==null?null:Math.round(n/st)*st; };
+const nNum=v=>toNum(nStr(v));
+function nKind(v){ v=nStr(v); if(!v) return null; const u=v.toUpperCase();
+  const m={'DRIVER':'W','ドライバー':'W','1W':'W','FAIRWAY':'FW','フェアウェイウッド':'FW','UTILITY':'UT','HYBRID':'UT','ユーティリティ':'UT','IRON':'I','アイアン':'I','WEDGE':'WG','ウェッジ':'WG','PUTTER':'PT','パター':'PT'};
+  const k=m[u]||m[v]||u; return KINDS.some(x=>x[0]===k)?k:null; }
+function nYear(v){ const n=nNum(v); const y=new Date().getFullYear()+1; return n!=null&&n>=1980&&n<=y?Math.round(n):null; }
+const AIF=[
+  {k:'kind',l:'種別',sec:'basic',f:'kind',norm:nKind,show:v=>(KINDS.find(x=>x[0]===v)||[,v])[1],d:'クラブの種別。W（ドライバー）/FW/UT/I（アイアン）/WG（ウェッジ）/PT（パター）/他 のどれか1つの記号'},
+  {k:'num',l:'番手',sec:'basic',f:'num',norm:nStr,d:'番手。例 1W, 3W, 4U, 7I, PW, 52°（ウェッジはロフト表記）'},
+  {k:'maker',l:'メーカー',sec:'basic',f:'maker',norm:nStr,d:'ヘッドのメーカー。英語の正式表記（例 Titleist, Callaway, TaylorMade, PING, Srixon）'},
+  {k:'series',l:'シリーズ・モデル',sec:'basic',f:'series',norm:nStr,d:'モデル名（例 T200, Paradym Ai Smoke MAX, G430 MAX）'},
+  {k:'year',l:'発売年',sec:'basic',f:'year',norm:nYear,d:'モデルの発売年（西暦4桁）'},
+  {k:'loftSpec',l:'ロフト（カタログ）',sec:'basic',f:'loftSpec',norm:nStep(0.5),show:v=>v.toFixed(1)+'°',d:'カタログのロフト角（度。数字だけ）'},
+  {k:'lieSpec',l:'ライ（カタログ）',sec:'basic',f:'lieSpec',norm:nStep(0.25),show:v=>v.toFixed(2)+'°',d:'カタログのライ角（度。数字だけ）'},
+  {k:'s_maker',l:'シャフトのメーカー',sec:'shafts',f:'maker',norm:nStr,d:'シャフトのメーカー（例 Fujikura, Mitsubishi Chemical, Graphite Design, Nippon Shaft, True Temper, KBS）'},
+  {k:'s_series',l:'シャフトのシリーズ',sec:'shafts',f:'series',norm:nStr,d:'シャフトの銘柄と重量帯（例 VENTUS BLUE 6, TOUR AD DI-6, N.S.PRO 950GH neo）'},
+  {k:'s_flex',l:'フレックス',sec:'shafts',f:'flex',norm:v=>{ v=nStr(v); return v?v.toUpperCase():null; },d:'フレックス（L/A/R/SR/S/X など）'},
+  {k:'s_weight',l:'シャフト重量',sec:'shafts',f:'weight',norm:nNum,show:v=>v+'g',d:'シャフト単体の重量（g。数字だけ）'},
+  {k:'s_torque',l:'トルク',sec:'shafts',f:'torque',norm:nNum,d:'シャフトのトルク（数字だけ）'},
+  {k:'s_kick',l:'調子',sec:'shafts',f:'kick',norm:v=>{ v=nStr(v); return v&&KICK.includes(v)?v:null; },show:v=>v+'調子',d:'キックポイント。先/先中/中/中元/元 のどれか'},
+  {k:'g_maker',l:'グリップのメーカー',sec:'grips',f:'maker',norm:nStr,d:'グリップのメーカー（例 Golf Pride, IOMIC, Lamkin）'},
+  {k:'g_model',l:'グリップのモデル',sec:'grips',f:'model',norm:nStr,d:'グリップのモデル名（例 Tour Velvet 360, MCC）'},
+];
+const AISEC={basic:'基本情報',shafts:'シャフト',grips:'グリップ'};
+let AIR=null;   // 直近の推定結果 {clubId, model, rows, notes}
+
+async function aiKey(){ const r=await dbGet('meta','geminiKey'); return r&&r.v||''; }
+async function apiErr(r){ let m=''; try{ const j=await r.json(); m=(j.error&&j.error.message)||''; }catch(e){}
+  if(r.status===400&&/API key/i.test(m)) return new Error('APIキーが正しくありません。データ › 写真から推定（AI）で入れ直してください。');
+  if(r.status===403) return new Error('このキーでは Gemini API を使えません（キーの制限・APIが無効など）。'+(m?'\n詳細: '+m:''));
+  if(r.status===429) return new Error('利用の上限に達しました（無料枠は1分・1日あたりの回数に上限があります）。しばらく待ってから試してください。');
+  return new Error('Gemini API のエラー（'+r.status+'）'+(m?': '+m:'')); }
+async function geminiModels(key){
+  let r; try{ r=await fetch(GAPI+'models?pageSize=1000',{headers:{'x-goog-api-key':key}}); }catch(e){ throw new Error('通信できませんでした（オフラインの可能性）。'); }
+  if(!r.ok) throw await apiErr(r);
+  const j=await r.json();
+  const names=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace(/^models\//,''))
+    .filter(n=>/^gemini-/.test(n)&&!/(tts|image|embedding|live|audio|learnlm|native|computer|robotics|thinking)/i.test(n));
+  const ver=n=>{ const m=/gemini-(\d+(?:\.\d+)?)/.exec(n); return m?parseFloat(m[1]):0; };
+  const score=n=>{ let s=0;
+    if(n==='gemini-flash-latest') s=1000; else if(n==='gemini-pro-latest') s=700;
+    else if(/-flash$/.test(n)) s=500+ver(n)*10; else if(/-flash-lite/.test(n)) s=200+ver(n); else if(/-flash/.test(n)) s=400+ver(n)*10; else if(/-pro/.test(n)) s=300+ver(n)*10; else s=100+ver(n);
+    if(/(preview|exp)/.test(n)) s-=250; return s; };
+  return names.sort((a,b)=>score(b)-score(a)); }
+async function geminiGenerate(key,body){
+  const cached=(await dbGet('meta','geminiModel')||{}).v;
+  let list=await geminiModels(key); if(!list.length) throw new Error('このキーで使える Gemini のモデルが見つかりませんでした。');
+  if(cached&&list.includes(cached)) list=[cached].concat(list.filter(x=>x!==cached));
+  for(const m of list.slice(0,5)){
+    let r; try{ r=await fetch(GAPI+'models/'+m+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)}); }
+    catch(e){ throw new Error('通信できませんでした（オフラインの可能性）。'); }
+    if(r.status===404) continue;   // 一覧にあっても使えないモデルがある
+    if(!r.ok) throw await apiErr(r);
+    const j=await r.json(); await dbPut('meta',{k:'geminiModel',v:m}); return {model:m,json:j}; }
+  throw new Error('使える Gemini のモデルが見つかりませんでした（候補: '+list.slice(0,5).join(', ')+'）。'); }
+
+function aiCur(c,f){ if(f.sec==='basic') return c[f.f]; const h=latest(c[f.sec]); return h?h[f.f]:null; }
+function aiShow(f,v){ return v==null||v===''?'':(f.show?f.show(v):String(v)); }
+function aiFresh(c){ return !c.maker&&!c.num&&!c.series; }
+
+async function aiStart(){
+  const c=clubById(ST.id); if(!c) return;
+  if(!await aiKey()){ openModal('<h3>写真から推定</h3><p class="sm">先に Gemini の APIキーを登録してください。</p><div class="row"><button class="pri" onclick="closeModal();go(\'data\')">データ › 写真から推定（AI）へ</button><button onclick="closeModal()">閉じる</button></div>'); return; }
+  const ph=PHOTOS[c.id]||[];
+  if(!ph.length){ openModal('<h3>写真から推定</h3><p class="sm">このクラブにはまだ写真がありません。下の「写真」の「＋ 追加」から、ヘッド（ソールの刻印）・シャフトのラベル・グリップが写った写真を足してください。</p><button onclick="closeModal()">閉じる</button>'); return; }
+  const pre=new Set(ph.slice(-6).map(p=>p.id));
+  openModal('<h3>写真から推定</h3><p class="sm">推定に使う写真を選んでください（最大6枚）。ソールの刻印・シャフトのラベル・グリップの文字が写っていると精度が上がります。</p>'+
+    '<div class="photos" id="aiph">'+ph.map(p=>'<label style="position:relative;display:block"><img src="'+p.url+'" alt=""><input type="checkbox" value="'+p.id+'" '+(pre.has(p.id)?'checked':'')+' style="position:absolute;top:6px;left:6px;width:22px;height:22px"></label>').join('')+'</div>'+
+    '<div class="notice" style="margin-top:10px">選んだ写真は Google の Gemini API に送られます。</div>'+
+    '<div class="row" style="margin-top:10px"><button class="pri" id="aigo" onclick="aiRun()">推定する</button><button onclick="closeModal()">キャンセル</button></div>');
+}
+async function aiRun(){
+  const c=clubById(ST.id), ids=[...document.querySelectorAll('#aiph input:checked')].map(x=>x.value);
+  if(!ids.length){ alert('写真を1枚以上選んでください。'); return; }
+  if(ids.length>6){ alert('写真は6枚までにしてください（いま'+ids.length+'枚）。'); return; }
+  const btn=$('aigo'); btn.disabled=true; btn.textContent='推定中…（10〜30秒ほど）';
+  try{
+    const key=await aiKey(), parts=[];
+    for(const id of ids){ const r=await dbGet('photos',id); const du=await blobToDataURL(r.blob); parts.push({inline_data:{mime_type:'image/jpeg',data:du.split(',')[1]}}); }
+    const fs={type:'OBJECT',properties:{value:{type:'STRING',nullable:true},confidence:{type:'STRING',enum:['high','medium','low']}},required:['value','confidence']};
+    const props={}; AIF.forEach(f=>props[f.k]=fs); props.notes={type:'STRING'};
+    const prompt='あなたはゴルフクラブに詳しい鑑定士です。添付の写真はすべて同じ1本のゴルフクラブです（ヘッド・ソール・シャフトのラベル・グリップなど）。次の項目を推定してください。\n'+
+      '- 写真に写っている文字・刻印・ロゴ・デザインを根拠にする。根拠が無い項目は value を null にする（当て推量で埋めない）。\n'+
+      '- モデルが特定できた場合は、ロフト・ライ・発売年・シャフト重量などをそのモデルの一般的なカタログ値で答えてよい。ただし confidence を high にするのは写真から直接読めた場合だけ。\n'+
+      '- 数値は単位を付けず数字だけ。\n項目:\n'+AIF.map(f=>'- '+f.k+': '+f.d).join('\n')+'\n- notes: 写真から読み取れた文字・刻印、特定の根拠、迷った点を日本語で短く（200字以内）。';
+    const body={contents:[{role:'user',parts:[{text:prompt}].concat(parts)}],generationConfig:{temperature:0.2,responseMimeType:'application/json',responseSchema:{type:'OBJECT',properties:props,required:AIF.map(f=>f.k).concat(['notes'])}}};
+    const {model,json}=await geminiGenerate(key,body);
+    const cand=(json.candidates||[])[0];
+    if(!cand){ throw new Error('推定結果が返りませんでした'+(json.promptFeedback&&json.promptFeedback.blockReason?'（'+json.promptFeedback.blockReason+'）':'')+'。'); }
+    const txt=((cand.content||{}).parts||[]).map(p=>p.text||'').join('');
+    let o; try{ o=JSON.parse(txt); }catch(e){ throw new Error('推定結果を読み取れませんでした。もう一度試してください。'); }
+    const fresh=aiFresh(c);
+    const rows=AIF.map(f=>{ const x=o[f.k]||{}; const est=f.norm(x.value); const cur=aiCur(c,f); const conf=['high','medium','low'].includes(x.confidence)?x.confidence:'low';
+      const empty=cur==null||cur===''||(f.k==='kind'&&fresh);
+      const same=est!=null&&String(est)===String(cur);
+      return {f,est,cur,conf,same,on:est!=null&&!same&&empty&&conf!=='low'}; });
+    AIR={clubId:c.id,model,rows,notes:nStr(o.notes)||''};
+    aiResult();
+  }catch(e){ btn.disabled=false; btn.textContent='推定する'; alert(e.message||String(e)); }
+}
+function aiResult(){
+  const R=AIR, CF={high:['高',''],medium:['中',''],low:['低','w']};
+  const got=R.rows.filter(r=>r.est!=null);
+  let h='<h3>推定結果</h3><p class="xs muted">モデル: '+esc(R.model)+'。チェックした項目だけを反映します。すでに値が入っている項目は、既定でチェックを外しています（上書きしない）。</p>';
+  if(!got.length) h+='<div class="card muted">写真から推定できた項目はありませんでした。刻印やラベルが写った写真を足して、もう一度試してください。</div>';
+  else{ h+='<div id="airt">'; let sec='';
+    R.rows.forEach((r,i)=>{ if(r.est==null) return;
+      if(r.f.sec!==sec){ sec=r.f.sec; h+='<div style="font-weight:700;margin:12px 0 4px">'+esc(AISEC[sec])+'</div>'; }
+      const cur=aiShow(r.f,r.cur);
+      h+='<label class="hist" style="cursor:pointer;align-items:center"><input type="checkbox" data-i="'+i+'" '+(r.on?'checked':'')+(r.same?' disabled':'')+' style="width:22px;height:22px;flex:none">'+
+        '<div class="t"><div class="xs muted">'+esc(r.f.l)+'</div><div><b>'+esc(aiShow(r.f,r.est))+'</b>'+(r.same?' <span class="xs muted">（いまと同じ）</span>':'')+'</div>'+
+        (cur&&!r.same?'<div class="xs muted">いま: '+esc(cur)+'</div>':'')+'</div>'+
+        '<span class="badge'+(CF[r.conf][1]?' w':'')+'" style="flex:none">確度 '+CF[r.conf][0]+'</span></label>'; });
+    h+='</div>'; }
+  if(R.notes) h+='<div class="card sm" style="margin-top:10px"><b>読み取れたこと・根拠</b><div style="white-space:pre-wrap">'+esc(R.notes)+'</div></div>'+
+    '<label class="row sm"><input type="checkbox" id="ainote" style="width:auto">この内容をメモに追記する</label>';
+  h+='<p class="xs muted">確度「低」は既定で外しています。シャフト・グリップは、記録が無ければ新しい記録（日付なし）として入れます。記録がある場合、空いている欄だけなら最新の記録に書き足し、入っている値と違う値を選んだときは上書きせず、今日の日付で新しい記録として足します（リシャフトの履歴を残すため）。</p>'+
+    '<div class="row" style="margin-top:8px">'+(got.length?'<button class="pri" onclick="aiApply()">チェックした項目を反映</button>':'')+'<button onclick="AIR=null;closeModal()">反映しないで閉じる</button></div>';
+  openModal(h);
+}
+async function aiApply(){
+  const R=AIR, c=clubById(R.clubId); if(!c) return;
+  const pick=[...document.querySelectorAll('#airt input[data-i]:checked')].map(x=>R.rows[+x.dataset.i]);
+  const memo=$('ainote')&&$('ainote').checked;
+  if(!pick.length&&!memo){ alert('反映する項目にチェックを入れてください。'); return; }
+  const tgt={}, isSet=v=>v!=null&&v!=='';
+  pick.forEach(r=>{ const f=r.f;
+    if(f.sec==='basic'){ c[f.f]=r.est; return; }
+    if(!tgt[f.sec]){ const h=latest(c[f.sec]);
+      // 入っている値と違う値を選んだら、上書きせず新しい記録にする（履歴を残す）
+      const clash=h&&pick.some(p=>p.f.sec===f.sec&&isSet(h[p.f.f]));
+      if(h&&!clash) tgt[f.sec]=h;
+      else { tgt[f.sec]={id:uid('h'),date:h?today():'',note:'写真から推定（'+today()+'）'}; c[f.sec].push(tgt[f.sec]); } }
+    tgt[f.sec][f.f]=r.est; });
+  if(memo) c.memo=(c.memo?c.memo+'\n\n':'')+'【写真から推定 '+today()+'】'+R.notes;
+  await saveClub(c); AIR=null; closeModal(); render(); toast(pick.length+'項目を反映しました');
+}
+async function addClubFromPhotos(files){ if(!files||!files.length) return;
+  const c=newClub(); await saveClub(c); ST.view='club'; ST.id=c.id;
+  await addPhotos(files); window.scrollTo(0,0);
+  if(await aiKey()) aiStart(); else toast('写真を登録しました。推定するには、データ › 写真から推定（AI）でキーを登録してください'); }
+
+/* AI の設定（データ画面） */
+async function refreshAiStat(){ const el=$('aistat'); if(!el) return;
+  const k=await aiKey(), m=(await dbGet('meta','geminiModel')||{}).v;
+  el.innerHTML=k?'APIキー: 登録済み（末尾 '+esc(k.slice(-4))+'）'+(m?' ／ 前回使ったモデル: '+esc(m):''):'APIキー: <b style="color:var(--warn)">未登録</b>'; }
+async function saveAiKey(){ const v=$('aikey').value.trim(); if(!v){ alert('APIキーを入れてください。'); return; }
+  const b=$('aikeybtn'); b.disabled=true; b.textContent='確かめています…';
+  try{ const list=await geminiModels(v); if(!list.length) throw new Error('このキーで使える Gemini のモデルが見つかりませんでした。');
+    await dbPut('meta',{k:'geminiKey',v}); $('aikey').value=''; refreshAiStat(); toast('登録しました（使えるモデル '+list.length+'件）'); }
+  catch(e){ alert(e.message||String(e)); }
+  b.disabled=false; b.textContent='保存して接続を確かめる'; }
+async function delAiKey(){ if(!confirm('この端末に保存した APIキーを消します。よろしいですか？')) return;
+  await dbDel('meta','geminiKey'); await dbDel('meta','geminiModel'); refreshAiStat(); toast('消しました'); }
 
 /* ---------- モーダル ---------- */
 function openModal(h){ $('sheet').innerHTML=h; $('modal').classList.add('on'); }
