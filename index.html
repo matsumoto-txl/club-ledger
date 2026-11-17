@@ -10,20 +10,20 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.1.1 2026-11-18 -->
+<!-- APP_BUILD 0.1.2 2026-11-18 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
-  --accent:#1f5f4a; --accent-weak:#e3efe9; --warn:#c0392b; --warn-weak:#fbe9e7; --amber:#b7791f;
+  --accent:#1d3557; --accent-weak:#e4eaf3; --head:#1d3557; --on-accent:#fff; --warn:#c0392b; --warn-weak:#fbe9e7; --amber:#b7791f;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#141816; --card:#1d2320; --fg:#e6ebe8; --muted:#9aa49f; --line:#2f3733;
-    --accent:#5cb592; --accent-weak:#203a30; --warn:#ef6b5d; --warn-weak:#3a2220; --amber:#e0a84a; }
+    --accent:#8fb0e0; --accent-weak:#1f2b3d; --head:#1d3557; --on-accent:#0f1a2b; --warn:#ef6b5d; --warn-weak:#3a2220; --amber:#e0a84a; }
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg);
   font-family:"Yu Gothic","游ゴシック",YuGothic,"Hiragino Sans",system-ui,sans-serif;font-size:15px;line-height:1.5}
-header{position:sticky;top:0;z-index:5;background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px}
+header{position:sticky;top:0;z-index:5;background:var(--head);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px}
 header h1{font-size:17px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header button{background:rgba(255,255,255,.18);color:#fff;border:0}
 main{padding:12px 16px 96px;max-width:760px;margin:0 auto}
@@ -35,7 +35,7 @@ h2 .sp{flex:1}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
 .muted{color:var(--muted)} .sm{font-size:13px} .xs{font-size:12px}
 button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:7px 12px;cursor:pointer}
-button.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
 button.warn{color:var(--warn);border-color:var(--warn)}
 button.sm{padding:4px 9px;font-size:13px}
 input,select,textarea{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 8px;width:100%}
@@ -91,7 +91,7 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.1.1';
+const APP_VERSION='0.1.2';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
