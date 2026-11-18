@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.2.0 2026-11-18 -->
+<!-- APP_BUILD 0.2.1 2026-11-18 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -91,7 +91,7 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.2.0';
+const APP_VERSION='0.2.1';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
@@ -406,7 +406,7 @@ function viewData(){
     '<div class="row"><button class="pri" id="aikeybtn" onclick="saveAiKey()">保存して接続を確かめる</button><button onclick="delAiKey()">キーを消す</button></div>'+
     '<p class="xs muted">クラブ詳細の「写真から推定」で、写真からメーカー・モデル・番手・シャフトなどを推定します。キーは Google AI Studio（https://aistudio.google.com/apikey）で作れます。'+
     'キーはこの端末の中にだけ保存し、バックアップには含めません（端末ごとに登録が要ります）。推定するときは、選んだ写真が Google の Gemini API に送られます。無料枠では、送った内容が Google のサービス改善に使われることがあります（Google の規約による）。</p></div>'+
-    '<p class="xs muted">クラブ台帳 v'+APP_VERSION+' ／ 保存形式 schema '+SCHEMA+'</p>';
+    '<p class="xs muted">クラブ台帳 v'+APP_VERSION+' ／ 保存形式 schema '+SCHEMA+' <button class="sm" onclick="checkUpdate()">更新を確認</button></p>';
 }
 async function refreshDataStats(){ const el=$('dstat'); if(!el) return;
   const nC=liveClubs().length, nP=Object.values(PHOTOS).reduce((s,a)=>s+a.length,0), lb=await dbGet('meta','lastBackup');
@@ -619,9 +619,18 @@ function openModal(h){ $('sheet').innerHTML=h; $('modal').classList.add('on'); }
 function closeModal(){ $('modal').classList.remove('on'); $('sheet').innerHTML=''; }
 
 /* ---------- アプリ更新（同意制） ---------- */
+let swReg=null;
+async function checkUpdate(){
+  if(!swReg){ toast('この環境では更新の確認ができません'); return; }
+  try{ await swReg.update(); }catch(e){ toast('確認できませんでした（通信を確かめてください）'); return; }
+  setTimeout(()=>{ if(swReg.waiting||swReg.installing) toast('新しいバージョンがあります。画面上の［更新する］を押してください'); else toast('最新です（v'+APP_VERSION+'）'); },1500);
+}
 function setupSW(){ if(!('serviceWorker' in navigator)||location.protocol==='file:') return;
   let reloading=false;
-  navigator.serviceWorker.register('sw.js').then(reg=>{
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+    swReg=reg;
+    // ホーム画面のアプリは裏から戻しても起動し直さないので、表に戻るたびに新しい版を確かめる
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); });
     const show=w=>{ const u=$('upd'); u.innerHTML='新しいバージョンがあります（更新前にバックアップ推奨） <button class="sm" onclick="go(\'data\')">バックアップへ</button> <button class="sm pri" id="updbtn">更新する</button>'; u.classList.add('on');
       $('updbtn').onclick=()=>{ reloading=true; w.postMessage({type:'SKIP_WAITING'}); }; };
     if(reg.waiting&&navigator.serviceWorker.controller) show(reg.waiting);
