@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.3.2 2026-11-18 -->
+<!-- APP_BUILD 0.3.3 2026-11-19 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -48,6 +48,8 @@ label.f span{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
 .thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;flex:none;background:var(--accent-weak);display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:700}
 .club .body{min-width:0;flex:1}
 .club .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bagchk{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:4px 2px;cursor:pointer}
+.bagchk input{width:26px;height:26px;margin:0;accent-color:var(--accent);cursor:pointer}
 .club .ln{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--accent-weak);color:var(--accent);font-weight:600}
 .badge.w{background:var(--warn-weak);color:var(--warn)}
@@ -92,8 +94,8 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.3.2';
-const APP_BUILD_DATE='2026-11-18';
+const APP_VERSION='0.3.3';
+const APP_BUILD_DATE='2026-11-19';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
@@ -145,8 +147,8 @@ function nowIso(){ return new Date().toISOString(); }
 function toNum(v){ if(v==null) return null; v=String(v).replace(/[０-９．－]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[,\s円g]/g,''); if(v==='') return null; const n=parseFloat(v); return isNaN(n)?null:n; }
 function yen(n){ return n==null?'':Number(n).toLocaleString('ja-JP')+'円'; }
 function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.display='none',2600); }
-function optHtml(opts,val){ let found=false; const h=opts.map(o=>{ const v=Array.isArray(o)?o[0]:o, l=Array.isArray(o)?o[1]:o; const s=(val!=null&&String(val)===String(v)); if(s) found=true; return '<option value="'+esc(v)+'"'+(s?' selected':'')+'>'+esc(l)+'</option>'; }).join('');
-  return '<option value=""></option>'+(val!=null&&val!==''&&!found?'<option value="'+esc(val)+'" selected>'+esc(val)+'</option>':'')+h; }
+function optHtml(opts,val,req){ let found=false; const h=opts.map(o=>{ const v=Array.isArray(o)?o[0]:o, l=Array.isArray(o)?o[1]:o; const s=(val!=null&&String(val)===String(v)); if(s) found=true; return '<option value="'+esc(v)+'"'+(s?' selected':'')+'>'+esc(l)+'</option>'; }).join('');
+  return (req?'':'<option value=""></option>')+(val!=null&&val!==''&&!found?'<option value="'+esc(val)+'" selected>'+esc(val)+'</option>':'')+h; }
 function balNum(b){ if(!b) return null; const m=/^([A-G])(\d(?:\.\d)?)$/.exec(String(b).trim().toUpperCase()); return m?('ABCDEFG'.indexOf(m[1])*10+parseFloat(m[2])):null; }
 function balStr(n){ if(n==null||isNaN(n)) return ''; const L='ABCDEFG'[Math.floor(n/10)]||'?'; return L+(Math.round((n%10)*10)/10); }
 
@@ -175,7 +177,7 @@ async function loadAll(){
 /* ---------- クラブ ---------- */
 function newClub(){ const t=nowIso(); return {id:uid('c'),schema:SCHEMA,name:'',nameAuto:true,kind:'I',num:'',maker:'',series:'',year:null,setName:'',loftSpec:null,lieSpec:null,status:'bag',
   shafts:[],grips:[],meas:[],play:[],buy:{},sell:{},memo:'',createdAt:t,updatedAt:t,deletedAt:null}; }
-function autoName(c){ return [c.maker,c.num].filter(Boolean).join(' ')||'（名称未設定）'; }
+function autoName(c){ return [c.num,c.maker,c.series].map(v=>String(v==null?'':v).trim()).filter(Boolean).join(' ')||'（名称未設定）'; }
 function nameOf(c){ return c.nameAuto?autoName(c):(c.name||autoName(c)); }
 function clubById(id){ return CLUBS.find(c=>c.id===id); }
 async function saveClub(c){ c.updatedAt=nowIso(); if(c.nameAuto) c.name=autoName(c); await dbPut('clubs',c);
@@ -231,41 +233,48 @@ function clubCard(c){
   const l1=[c.series,c.year?c.year+'年':''].filter(Boolean).join(' / ');
   return '<div class="card club" onclick="openClub(\''+c.id+'\')">'+th+'<div class="body"><div class="nm">'+esc(nameOf(c))+'</div>'+
     (l1?'<div class="ln">'+esc(l1)+'</div>':'')+(s?'<div class="ln">シャフト: '+esc(sumOf('shafts',s))+'</div>':'')+
-    (m?'<div class="ln">実測: '+esc(sumOf('meas',m))+'</div>':'')+(p&&p.dist!=null?'<div class="ln">想定 '+p.dist+'y</div>':'')+'</div></div>';
+    (m?'<div class="ln">実測: '+esc(sumOf('meas',m))+'</div>':'')+(p&&p.dist!=null?'<div class="ln">想定 '+p.dist+'y</div>':'')+'</div>'+
+    ((c.status!=='sold'&&c.status!=='gone')?'<label class="bagchk" onclick="event.stopPropagation()"><input type="checkbox"'+(c.status==='bag'?' checked':'')+' onchange="toggleBag(\''+c.id+'\',this.checked)" aria-label="バッグに入れる">バッグ</label>':'')+'</div>';
 }
 function viewBag(){
   const L=sortClubs(liveClubs()); const nBag=L.filter(c=>c.status==='bag').length;
   let h='<div class="row" style="margin:4px 0 6px"><span>バッグ <b>'+nBag+'</b> 本</span>'+(nBag>14?'<span class="badge w">14本を超えています</span>':'')+'<span style="flex:1"></span><label style="cursor:pointer"><span class="badge" style="padding:8px 12px">写真から追加</span><input type="file" accept="image/*" multiple style="display:none" onchange="addClubFromPhotos(this.files)"></label><button class="pri" onclick="addClub()">＋ クラブを追加</button></div>';
   if(!L.length) return h+'<div class="card muted">まだクラブがありません。「＋ クラブを追加」から登録してください。</div>';
+  const odd=L.filter(c=>!STATUS.some(x=>x[0]===c.status));
+  if(odd.length) h+='<h2>状態が未設定（'+odd.length+'）</h2><p class="xs muted" style="margin:-4px 0 8px">「バッグ」にチェックを付けるか、クラブを開いて状態を選んでください。</p>'+odd.map(clubCard).join('');
   STATUS.forEach(([k,lab])=>{ const a=L.filter(c=>c.status===k); if(!a.length) return;
     const body=a.map(clubCard).join('');
     h+= (k==='bag'||k==='spare') ? '<h2>'+lab+'（'+a.length+'）</h2>'+body : '<details><summary>'+lab+'（'+a.length+'）</summary>'+body+'</details>'; });
   return h;
 }
+/* 一覧のチェックでバッグ⇔控えを切り替える（描き直して本数・見出しを更新。スクロール位置は保つ） */
+async function toggleBag(id,on){ const c=clubById(id); if(!c) return; c.status=on?'bag':'spare'; await saveClub(c);
+  const y=window.scrollY; render(); window.scrollTo(0,y); const n=liveClubs().filter(x=>x.status==='bag').length;
+  toast((on?'バッグに入れました':'控えに移しました')+'（バッグ '+n+'本）'); }
 async function addClub(){ const c=newClub(); await saveClub(c); openClub(c.id); }
 
 /* ---------- クラブ詳細 ---------- */
 function fld(f,val,attr){ attr=attr||''; const lab='<span>'+esc(f.l)+(f.u?'（'+esc(f.u)+'）':'')+'</span>';
   let inp;
   if(f.t==='date') inp='<input type="date" name="'+f.k+'" value="'+esc(val||'')+'" '+attr+'>';
-  else if(f.t==='sel') inp='<select name="'+f.k+'" '+attr+'>'+optHtml(f.o,val)+'</select>';
+  else if(f.t==='sel') inp='<select name="'+f.k+'" '+attr+'>'+optHtml(f.o,val,f.req)+'</select>';
   else if(f.t==='area'){ const id='ta_'+f.k; inp='<textarea id="'+id+'" name="'+f.k+'" '+attr+'>'+esc(val||'')+'</textarea>'+micBtn(id); }
   else if(f.t==='num') inp='<input name="'+f.k+'" inputmode="decimal" value="'+esc(val==null?'':val)+'" '+attr+'>';
   else inp='<input name="'+f.k+'" value="'+esc(val||'')+'"'+(f.dl?' list="'+f.dl+'"':'')+' autocomplete="off" '+attr+'>';
   return '<label class="f">'+lab+inp+'</label>'; }
 
 const BASIC=[
-  {k:'kind',l:'種別',t:'sel',o:KINDS},{k:'num',l:'番手',t:'text',dl:'dl-num'},
+  {k:'kind',l:'種別',t:'sel',o:KINDS,req:true},{k:'num',l:'番手',t:'text',dl:'dl-num'},
   {k:'maker',l:'メーカー',t:'text',dl:'dl-maker'},{k:'series',l:'シリーズ・モデル',t:'text',dl:'dl-series'},
   {k:'year',l:'発売年',t:'sel',o:YEARS,n:1},{k:'setName',l:'セット名（アイアンセット等）',t:'text'},
   {k:'loftSpec',l:'ロフト（カタログ）',t:'sel',o:LOFT,n:1},{k:'lieSpec',l:'ライ（カタログ）',t:'sel',o:LIE,n:1},
-  {k:'status',l:'状態',t:'sel',o:STATUS}];
+  {k:'status',l:'状態',t:'sel',o:STATUS,req:true}];
 
 function viewClub(){
   const c=clubById(ST.id); if(!c) return '<p>クラブが見つかりません。</p><button onclick="go(\'bag\')">戻る</button>';
   let h='<div class="row" style="margin-bottom:8px"><button onclick="go(\'bag\')">← 一覧</button><span style="flex:1"></span><span class="xs muted">ID: '+esc(c.id)+'</span></div>';
   // 名前
-  h+='<div class="card"><label class="f"><span>名前 '+(c.nameAuto?'<span class="badge">自動（メーカー＋番手）</span>':'<span class="badge">手入力</span>')+'</span>'+
+  h+='<div class="card"><label class="f"><span>名前 '+(c.nameAuto?'<span class="badge">自動（番手 メーカー シリーズ）</span>':'<span class="badge">手入力</span>')+'</span>'+
      '<input id="cname" value="'+esc(nameOf(c))+'" onchange="setName(this.value)"></label>'+
      (c.nameAuto?'':'<button class="sm" onclick="resetName()">自動に戻す</button>')+'</div>';
   // 基本
@@ -294,6 +303,7 @@ function viewClub(){
   return h;
 }
 async function setBasic(k,v){ const c=clubById(ST.id); if(!c) return; const f=BASIC.find(x=>x.k===k);
+  if(f&&f.req&&(v==null||v==='')){ render(); return; }
   c[k]=(f&&f.n)?toNum(v):v; await saveClub(c);
   if(c.nameAuto){ $('cname').value=nameOf(c); } $('ttl').textContent=nameOf(c); toast('保存しました'); }
 async function setName(v){ const c=clubById(ST.id); v=v.trim(); if(!v){ c.nameAuto=true; } else { c.nameAuto=false; c.name=v; } await saveClub(c); render(); toast('保存しました'); }
@@ -574,6 +584,7 @@ async function aiRun(){
   if(!ids.length){ alert('写真を1枚以上選んでください。'); return; }
   if(ids.length>6){ alert('写真は6枚までにしてください（いま'+ids.length+'枚）。'); return; }
   const btn=$('aigo'); btn.disabled=true; btn.textContent='推定中…（10〜30秒ほど）';
+  const t0=Date.now(), tick=setInterval(()=>{ const b=$('aigo'); if(b) b.textContent='推定中…（'+Math.round((Date.now()-t0)/10000)*10+'秒経過）'; },10000);
   try{
     const key=await aiKey(), parts=[];
     for(const id of ids){ const r=await dbGet('photos',id); const du=await blobToDataURL(r.blob); parts.push({inline_data:{mime_type:'image/jpeg',data:du.split(',')[1]}}); }
@@ -597,6 +608,7 @@ async function aiRun(){
     AIR={clubId:c.id,model,rows,notes:nStr(o.notes)||''};
     aiResult();
   }catch(e){ btn.disabled=false; btn.textContent='推定する'; alert(e.message||String(e)); }
+  finally{ clearInterval(tick); }
 }
 function aiResult(){
   const R=AIR, CF={high:['高',''],medium:['中',''],low:['低','w']};
