@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.3.1 2026-11-18 -->
+<!-- APP_BUILD 0.3.2 2026-11-18 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -92,7 +92,7 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.3.1';
+const APP_VERSION='0.3.2';
 const APP_BUILD_DATE='2026-11-18';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
@@ -509,6 +509,7 @@ function apiErrMsg(status,m){ const r={status};
   if(r.status===400&&/API key/i.test(m)) return new Error('APIキーが正しくありません。データ › Gemini（AI連携）で入れ直してください。');
   if(r.status===403) return new Error('このキーでは Gemini API を使えません（キーの制限・APIが無効など）。'+(m?'\n詳細: '+m:''));
   if(r.status===429) return new Error('利用の上限に達しました（無料枠は1分・1日あたりの回数に上限があります）。しばらく待ってから試してください。');
+  if(r.status===503||r.status===500) return new Error('Gemini が混み合っています（'+r.status+'・Google 側の一時的な混雑）。少し待ってから試してください。');
   return new Error('Gemini API のエラー（'+r.status+'）'+(m?': '+m:'')); }
 async function geminiModels(key){
   let r; try{ r=await fetch(GAPI+'models?pageSize=1000',{headers:{'x-goog-api-key':key}}); }catch(e){ throw new Error('通信できませんでした（オフラインの可能性）。'); }
@@ -524,9 +525,10 @@ async function geminiModels(key){
   return names.sort((a,b)=>score(b)-score(a)); }
 /* 速さのため: ①答える前に考える処理（thinking）を最小にする ②前回うまくいったモデルは一覧を取り直さずに使う。
    thinking の指定方法はモデルの世代で違い、受け付けないモデルもあるので、400（thinking 関連）なら次の指定→指定なしへ順に落とす。
-   うまくいったモデルと指定は meta.geminiModel に {v:モデル名, think:指定} で覚える（旧形式 {v} もそのまま読める）。 */
+   うまくいったモデルと指定は meta.geminiModel に {v:モデル名, think:指定} で覚える（旧形式 {v} もそのまま読める）。
+   503/500（Google 側の混雑）は次のモデルで試す。混雑の代わりに通ったモデルは覚えない（混雑が解ければ元のモデルに戻るように）。 */
 function thinkOpts(m){ return /gemini-2\.5/.test(m) ? [{thinkingBudget:0}] : [{thinkingLevel:'minimal'},{thinkingLevel:'low'}]; }
-async function geminiTry(key,body,m,hint){
+async function geminiTry(key,body,m,hint,save=true){
   let opts=thinkOpts(m).concat([null]);
   if(hint!==undefined) opts=[hint].concat(opts.filter(o=>JSON.stringify(o)!==JSON.stringify(hint)));
   let lastErr=null;
@@ -539,14 +541,17 @@ async function geminiTry(key,body,m,hint){
     if(!r.ok){ let msg=''; try{ const j=await r.json(); msg=(j.error&&j.error.message)||''; }catch(e){}
       lastErr=apiErrMsg(r.status,msg);
       if(r.status===400&&t&&/think/i.test(msg)) continue;   // この thinking 指定を受け付けないモデル → 次の指定で
+      if(r.status===503||r.status===500) return {busy:lastErr};   // 混雑 → 呼び出し元が次のモデルで試す
       throw lastErr; }
-    const j=await r.json(); await dbPut('meta',{k:'geminiModel',v:m,think:t}); return {model:m,json:j}; }
+    const j=await r.json(); if(save) await dbPut('meta',{k:'geminiModel',v:m,think:t}); return {model:m,json:j}; }
   throw lastErr||new Error('Gemini API のエラー'); }
 async function geminiGenerate(key,body){
   const rec=await dbGet('meta','geminiModel')||{};
-  if(rec.v){ const res=await geminiTry(key,body,rec.v,rec.think); if(res) return res; }
-  const list=(await geminiModels(key)).filter(x=>x!==rec.v); if(!list.length) throw new Error('このキーで使える Gemini のモデルが見つかりませんでした。');
-  for(const m of list.slice(0,5)){ const res=await geminiTry(key,body,m); if(res) return res; }
+  let busy=null;
+  if(rec.v){ const res=await geminiTry(key,body,rec.v,rec.think); if(res&&!res.busy) return res; if(res) busy=res.busy; }
+  const list=(await geminiModels(key)).filter(x=>x!==rec.v); if(!list.length) throw busy||new Error('このキーで使える Gemini のモデルが見つかりませんでした。');
+  for(const m of list.slice(0,5)){ const res=await geminiTry(key,body,m,undefined,!busy); if(res&&!res.busy) return res; if(res) busy=busy||res.busy; }
+  if(busy) throw busy;
   throw new Error('使える Gemini のモデルが見つかりませんでした（候補: '+list.slice(0,5).join(', ')+'）。'); }
 
 function aiCur(c,f){ if(f.sec==='basic') return c[f.f]; const h=latest(c[f.sec]); return h?h[f.f]:null; }

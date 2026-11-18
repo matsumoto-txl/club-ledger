@@ -1,6 +1,6 @@
 // クラブ台帳 Service Worker
 // 更新はサイレントに当てない: 新版は waiting で止まり、画面の[更新する]を押したときだけ切り替える
-const CACHE = 'club-ledger-0.3.1';
+const CACHE = 'club-ledger-0.3.2';
 const PREFIX = 'club-ledger-';   // このアプリのキャッシュだけを掃除する（同じドメインの他アプリには触らない）
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 
