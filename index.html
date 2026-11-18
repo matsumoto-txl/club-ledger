@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.2.1 2026-11-18 -->
+<!-- APP_BUILD 0.3.0 2026-11-18 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -59,6 +59,7 @@ label.f span{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
 .photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer}
 details>summary{cursor:pointer;font-weight:700;margin:14px 0 8px}
+details.sec>summary{font-size:16px;padding:6px 2px;border-bottom:1px solid var(--line)}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid var(--line);padding:5px 4px;text-align:right}
 th:first-child,td:first-child{text-align:left}
@@ -91,7 +92,8 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.2.1';
+const APP_VERSION='0.3.0';
+const APP_BUILD_DATE='2026-11-18';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
@@ -247,7 +249,7 @@ function fld(f,val,attr){ attr=attr||''; const lab='<span>'+esc(f.l)+(f.u?'（'+
   let inp;
   if(f.t==='date') inp='<input type="date" name="'+f.k+'" value="'+esc(val||'')+'" '+attr+'>';
   else if(f.t==='sel') inp='<select name="'+f.k+'" '+attr+'>'+optHtml(f.o,val)+'</select>';
-  else if(f.t==='area') inp='<textarea name="'+f.k+'" '+attr+'>'+esc(val||'')+'</textarea>';
+  else if(f.t==='area'){ const id='ta_'+f.k; inp='<textarea id="'+id+'" name="'+f.k+'" '+attr+'>'+esc(val||'')+'</textarea>'+micBtn(id); }
   else if(f.t==='num') inp='<input name="'+f.k+'" inputmode="decimal" value="'+esc(val==null?'':val)+'" '+attr+'>';
   else inp='<input name="'+f.k+'" value="'+esc(val||'')+'"'+(f.dl?' list="'+f.dl+'"':'')+' autocomplete="off" '+attr+'>';
   return '<label class="f">'+lab+inp+'</label>'; }
@@ -286,7 +288,7 @@ function viewClub(){
   h+='<h2>写真（'+ph.length+'）<span class="sp"></span><button class="sm" onclick="aiStart()">写真から推定</button><label class="sm" style="cursor:pointer"><span class="badge" style="padding:5px 10px">＋ 追加</span><input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos(this.files)"></label></h2>';
   h+='<div class="card">'+(ph.length?'<div class="photos">'+ph.map(p=>'<img src="'+p.url+'" alt="" onclick="viewPhoto(\''+p.id+'\')">').join('')+'</div>':'<div class="muted sm">写真なし（刻印・シリアル・ソールの傷・購入時の状態などを残しておけます）</div>')+'</div>';
   // メモ
-  h+='<h2>メモ</h2><div class="card"><textarea onchange="setBasic(\'memo\',this.value)" placeholder="Webで調べにくい情報（個体差・刻印・前オーナー情報など）">'+esc(c.memo||'')+'</textarea></div>';
+  h+='<h2>メモ</h2><div class="card"><textarea onchange="setBasic(\'memo\',this.value)" id="ta_memo" placeholder="Webで調べにくい情報（個体差・刻印・前オーナー情報など）">'+esc(c.memo||'')+'</textarea>'+micBtn('ta_memo')+'</div>';
   h+='<div class="row" style="margin-top:18px"><button onclick="dupClub()">このクラブを複製</button><span style="flex:1"></span><button class="warn" onclick="trashClub()">ゴミ箱へ移す</button></div>';
   h+='<p class="xs muted">複製は基本情報とシャフト・グリップだけを写します（実測・ラウンド情報・購入売却・写真は写しません）。</p>';
   return h;
@@ -395,19 +397,31 @@ function missHtml(m){ return m.length?'<div class="xs muted">実測が足りず�
 /* ---------- データ（バックアップ・復元・CSV・ゴミ箱） ---------- */
 function viewData(){
   const nT=CLUBS.filter(c=>c.deletedAt).length;
-  return '<h2>バックアップ</h2><div class="card"><div id="dstat" class="sm muted" style="margin-bottom:8px">集計中…</div>'+
+  return '<p class="xs muted" style="margin:2px 0 4px">見出しをタップで開閉できます（開閉の状態はこの端末に保存）。</p>'+
+    sec('backup','バックアップ・復元','<div class="card"><div id="dstat" class="sm muted" style="margin-bottom:8px">集計中…</div>'+
     '<div class="row"><button class="pri" onclick="exportJSON()">バックアップを書き出す（写真込み）</button>'+
     '<label style="cursor:pointer"><span class="badge" style="padding:8px 12px">バックアップを読み込む</span><input type="file" accept="application/json,.json" style="display:none" onchange="importJSON(this.files[0]);this.value=\'\'"></label></div>'+
-    '<p class="xs muted">データはこの端末の中（ブラウザ）にだけ保存されています。端末の故障・ブラウザのデータ消去に備えて、ときどき書き出してください。読み込みは既定で「別のIDとして追加」し、今あるデータは消しません。</p></div>'+
-    '<h2>一覧の書き出し</h2><div class="card"><button onclick="exportCSV()">CSVを書き出す（閲覧用）</button><p class="xs muted">各クラブの現在の値（最新の履歴）を1行にまとめます。CSVからの読み込みはできません。</p></div>'+
-    '<h2>ゴミ箱</h2><div class="card"><button onclick="ST.view=\'trash\';render()">ゴミ箱を開く（'+nT+'）</button></div>'+
-    '<h2>写真から推定（AI）</h2><div class="card"><div id="aistat" class="sm" style="margin-bottom:8px">確認中…</div>'+
+    '<p class="xs muted">データはこの端末の中（ブラウザ）にだけ保存されています。端末の故障・ブラウザのデータ消去に備えて、ときどき書き出してください。読み込みは既定で「別のIDとして追加」し、今あるデータは消しません。</p></div>',true)+
+    sec('text','セッティングを文字で書き出す','<div class="card"><div class="row"><button class="pri" onclick="openTextExport()">文字で書き出す（コピー・共有）</button></div>'+
+    '<p class="xs muted">クラブごとの番手・モデル・シャフト・グリップ・実測・想定距離を文章にまとめます。LINE やメモ帳に貼ったり、AI にセッティングの相談をするときに使えます。復元には使えません（復元はバックアップの JSON で）。</p></div>')+
+    sec('csv','一覧の書き出し（CSV）','<div class="card"><button onclick="exportCSV()">CSVを書き出す（閲覧用）</button><p class="xs muted">各クラブの現在の値（最新の履歴）を1行にまとめます。CSVからの読み込みはできません。</p></div>')+
+    sec('trash','ゴミ箱（'+nT+'）','<div class="card"><button onclick="ST.view=\'trash\';render()">ゴミ箱を開く（'+nT+'）</button></div>')+
+    sec('ai','Gemini（AI連携）','<div class="card"><div id="aistat" class="sm" style="margin-bottom:8px">確認中…</div>'+
     '<label class="f"><span>Gemini の APIキー（登録・入れ替え）</span><input id="aikey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>'+
     '<div class="row"><button class="pri" id="aikeybtn" onclick="saveAiKey()">保存して接続を確かめる</button><button onclick="delAiKey()">キーを消す</button></div>'+
-    '<p class="xs muted">クラブ詳細の「写真から推定」で、写真からメーカー・モデル・番手・シャフトなどを推定します。キーは Google AI Studio（https://aistudio.google.com/apikey）で作れます。'+
-    'キーはこの端末の中にだけ保存し、バックアップには含めません（端末ごとに登録が要ります）。推定するときは、選んだ写真が Google の Gemini API に送られます。無料枠では、送った内容が Google のサービス改善に使われることがあります（Google の規約による）。</p></div>'+
-    '<p class="xs muted">クラブ台帳 v'+APP_VERSION+' ／ 保存形式 schema '+SCHEMA+' <button class="sm" onclick="checkUpdate()">更新を確認</button></p>';
+    '<p class="xs muted">使うところ: クラブ詳細の「写真から推定」と、メモ欄の「🎤 声で入力」（どちらもオンライン時のみ）。キーは Google AI Studio（https://aistudio.google.com/apikey）で作れます。'+
+    'キーはこの端末の中にだけ保存し、バックアップには含めません（端末ごとに登録が要ります）。使うときは、選んだ写真・録音した音声が Google の Gemini API に送られます。無料枠では、送った内容が Google のサービス改善に使われることがあります（Google の規約による）。</p>'+
+    '<div class="notice" style="margin-top:8px"><b>キーが漏れたときの被害を小さくする設定（おすすめ）</b><br>・<b>このアプリ専用のキー</b>を作る（漏れても、そのキーだけ消せば済む）<br>'+
+    '・Google Cloud のキー設定で「API の制限」を <b>Generative Language API だけ</b>にする<br>・「アプリケーションの制限」を <b>ウェブサイト（HTTP リファラー）</b>にし、'+esc(location.hostname||'公開ドメイン')+' だけを許可する<br>・割り当て（クォータ）を低めにしておく<br>・モデルはアプリが自動で選びます（最新のものを優先）</div></div>')+
+    sec('ver','バージョン情報','<div class="card"><div style="font-weight:700;font-size:16px">クラブ台帳 v'+APP_VERSION+'</div>'+
+    '<div class="xs muted">ビルド日: '+APP_BUILD_DATE+' ／ 保存形式 schema '+SCHEMA+'</div>'+
+    '<div class="row" style="margin-top:8px"><button onclick="checkUpdate()">更新を確認</button></div>'+
+    '<p class="xs muted">この番号が変わっていれば、更新が反映されています。更新は「新しいバージョンがあります」→「更新する」で当たります。アプリを表に戻すたびにも自動で確かめます。</p></div>',true);
 }
+/* 開閉できる見出し（状態は端末の localStorage に保存。使えなくても既定の開閉で表示する） */
+function secOpen(key,def){ try{ const o=JSON.parse(localStorage.getItem('club-ledger.secOpen')||'{}'); return key in o?!!o[key]:!!def; }catch(e){ return !!def; } }
+function secToggle(key,open){ try{ const o=JSON.parse(localStorage.getItem('club-ledger.secOpen')||'{}'); o[key]=open; localStorage.setItem('club-ledger.secOpen',JSON.stringify(o)); }catch(e){} }
+function sec(key,title,body,def){ return '<details class="sec"'+(secOpen(key,def)?' open':'')+' ontoggle="secToggle(\''+key+'\',this.open)"><summary>'+esc(title)+'</summary>'+body+'</details>'; }
 async function refreshDataStats(){ const el=$('dstat'); if(!el) return;
   const nC=liveClubs().length, nP=Object.values(PHOTOS).reduce((s,a)=>s+a.length,0), lb=await dbGet('meta','lastBackup');
   let est=''; try{ const e=await navigator.storage.estimate(); est=' ／ 使用量 約'+(e.usage/1048576).toFixed(1)+'MB'; }catch(e){}
@@ -487,7 +501,7 @@ let AIR=null;   // 直近の推定結果 {clubId, model, rows, notes}
 
 async function aiKey(){ const r=await dbGet('meta','geminiKey'); return r&&r.v||''; }
 async function apiErr(r){ let m=''; try{ const j=await r.json(); m=(j.error&&j.error.message)||''; }catch(e){}
-  if(r.status===400&&/API key/i.test(m)) return new Error('APIキーが正しくありません。データ › 写真から推定（AI）で入れ直してください。');
+  if(r.status===400&&/API key/i.test(m)) return new Error('APIキーが正しくありません。データ › Gemini（AI連携）で入れ直してください。');
   if(r.status===403) return new Error('このキーでは Gemini API を使えません（キーの制限・APIが無効など）。'+(m?'\n詳細: '+m:''));
   if(r.status===429) return new Error('利用の上限に達しました（無料枠は1分・1日あたりの回数に上限があります）。しばらく待ってから試してください。');
   return new Error('Gemini API のエラー（'+r.status+'）'+(m?': '+m:'')); }
@@ -521,7 +535,7 @@ function aiFresh(c){ return !c.maker&&!c.num&&!c.series; }
 
 async function aiStart(){
   const c=clubById(ST.id); if(!c) return;
-  if(!await aiKey()){ openModal('<h3>写真から推定</h3><p class="sm">先に Gemini の APIキーを登録してください。</p><div class="row"><button class="pri" onclick="closeModal();go(\'data\')">データ › 写真から推定（AI）へ</button><button onclick="closeModal()">閉じる</button></div>'); return; }
+  if(!await aiKey()){ openModal('<h3>写真から推定</h3><p class="sm">先に Gemini の APIキーを登録してください。</p><div class="row"><button class="pri" onclick="closeModal();go(\'data\')">データ › Gemini（AI連携）へ</button><button onclick="closeModal()">閉じる</button></div>'); return; }
   const ph=PHOTOS[c.id]||[];
   if(!ph.length){ openModal('<h3>写真から推定</h3><p class="sm">このクラブにはまだ写真がありません。下の「写真」の「＋ 追加」から、ヘッド（ソールの刻印）・シャフトのラベル・グリップが写った写真を足してください。</p><button onclick="closeModal()">閉じる</button>'); return; }
   const pre=new Set(ph.slice(-6).map(p=>p.id));
@@ -599,7 +613,7 @@ async function aiApply(){
 async function addClubFromPhotos(files){ if(!files||!files.length) return;
   const c=newClub(); await saveClub(c); ST.view='club'; ST.id=c.id;
   await addPhotos(files); window.scrollTo(0,0);
-  if(await aiKey()) aiStart(); else toast('写真を登録しました。推定するには、データ › 写真から推定（AI）でキーを登録してください'); }
+  if(await aiKey()) aiStart(); else toast('写真を登録しました。推定するには、データ › Gemini（AI連携）でキーを登録してください'); }
 
 /* AI の設定（データ画面） */
 async function refreshAiStat(){ const el=$('aistat'); if(!el) return;
@@ -613,6 +627,66 @@ async function saveAiKey(){ const v=$('aikey').value.trim(); if(!v){ alert('API�
   b.disabled=false; b.textContent='保存して接続を確かめる'; }
 async function delAiKey(){ if(!confirm('この端末に保存した APIキーを消します。よろしいですか？')) return;
   await dbDel('meta','geminiKey'); await dbDel('meta','geminiModel'); refreshAiStat(); toast('消しました'); }
+
+/* ---------- 声で入力（録音→Gemini で文字起こし→メモ欄に追記）※100yd Sync の方式を移植 ---------- */
+const RECPROMPT='以下の音声は、ゴルフクラブについての口頭メモです。日本語で正確に文字起こししてください。'+
+  'メーカー名（Titleist・Callaway・TaylorMade・PING・Srixon・Mizuno など）、モデル名、番手（1W・3W・5U・7I・PW・52° など）、'+
+  'シャフトの銘柄とフレックス（R・SR・S・X）、重量（g）、トルク、ロフト・ライ（°）、バランス（D2 など）、振動数（cpm）、長さ（インチ）、ヤードなどの数字と単位を正しく書いてください。'+
+  '要点だけを簡潔に。前置きや解説は付けず、本文だけを返してください。';
+let REC=null;   // {id, mr, stream, chunks, state:'rec'|'busy'}
+function micBtn(id){ return '<div class="row" style="margin-top:4px"><button type="button" class="sm mic" data-mic="'+id+'" onclick="toggleRec(\''+id+'\')">🎤 声で入力</button></div>'; }
+function micLabel(id,t){ const b=document.querySelector('[data-mic="'+id+'"]'); if(b){ b.textContent=t; b.classList.toggle('pri',t.indexOf('止める')>=0); } }
+function blobB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+async function toggleRec(id){
+  if(REC&&REC.state==='busy') return;
+  if(REC&&REC.state==='rec'){ if(REC.id!==id){ toast('別の欄で録音中です'); return; } if(REC.mr.state!=='inactive') REC.mr.stop(); return; }
+  const key=await aiKey();
+  if(!key){ openModal('<h3>APIキーが未登録です</h3><p class="sm">声で入力するには、Gemini の APIキーが要ります。データ画面の「Gemini（AI連携）」で登録してください。</p><div class="row"><button class="pri" onclick="closeModal();go(\'data\')">データ画面へ</button><button onclick="closeModal()">閉じる</button></div>'); return; }
+  if(!navigator.mediaDevices||!window.MediaRecorder){ alert('この端末・ブラウザでは録音できません。キーボードのマイク（音声入力）を使ってください。'); return; }
+  let stream; try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }catch(e){ alert('マイクを使えません（'+e.message+'）。端末の設定でマイクを許可してください。'); return; }
+  const mr=new MediaRecorder(stream); REC={id,mr,stream,chunks:[],state:'rec'};
+  mr.ondataavailable=e=>{ if(e.data&&e.data.size) REC.chunks.push(e.data); };
+  mr.onstop=async ()=>{ const R=REC; R.stream.getTracks().forEach(t=>t.stop()); R.state='busy'; micLabel(id,'文字にしています…');
+    try{ const mime=(mr.mimeType||'audio/webm').split(';')[0]; const blob=new Blob(R.chunks,{type:mime});
+      if(!blob.size) throw new Error('音声が録れていませんでした。');
+      const b64=await blobB64(blob);
+      const body={contents:[{role:'user',parts:[{text:RECPROMPT},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{temperature:0}};
+      const {json}=await geminiGenerate(key,body);
+      const txt=((((json.candidates||[])[0]||{}).content||{}).parts||[]).map(p=>p.text||'').join('').trim();
+      if(!txt) throw new Error('文字にできませんでした（音声が短い・聞き取れない可能性）。');
+      const ta=$(id); if(ta){ ta.value=(ta.value?ta.value.replace(/\s+$/,'')+'\n':'')+txt; ta.dispatchEvent(new Event('change')); toast('メモに追記しました'); }
+      else { try{ await navigator.clipboard.writeText(txt); }catch(e2){} alert('入力欄が閉じられていたため、文字はコピーだけしました。\n\n'+txt); }
+    }catch(e){ alert('文字起こしに失敗しました: '+e.message); }
+    REC=null; micLabel(id,'🎤 声で入力'); };
+  mr.start(); micLabel(id,'■ 止める（録音中）');
+}
+
+/* ---------- セッティングを文字で書き出す（コピー・共有） ---------- */
+function settingText(scope){
+  const st=scope==='all'?STATUS.map(x=>x[0]):(scope==='bs'?['bag','spare']:['bag']);
+  const L=sortClubs(liveClubs()).filter(c=>st.includes(c.status));
+  const lines=['【クラブセッティング】'+today()+'（'+L.length+'本）'];
+  STATUS.forEach(([k,lab])=>{ const a=L.filter(c=>c.status===k); if(!a.length) return;
+    lines.push('', '■ '+lab+'（'+a.length+'本）');
+    a.forEach(c=>{ const spec=[c.loftSpec!=null?'ロフト'+c.loftSpec+'°':'',c.lieSpec!=null?'ライ'+c.lieSpec+'°':'',c.year?c.year+'年':''].filter(Boolean).join(' / ');
+      const mm=[c.maker,c.series].filter(Boolean).join(' ');
+      lines.push('・'+nameOf(c)+(mm&&nameOf(c).indexOf(mm)<0?'（'+mm+'）':''));
+      if(spec) lines.push('　カタログ: '+spec);
+      const sh=sumOf('shafts',latest(c.shafts)), gr=sumOf('grips',latest(c.grips)), me=sumOf('meas',latest(c.meas)), pl=sumOf('play',latest(c.play));
+      if(sh) lines.push('　シャフト: '+sh);
+      if(gr) lines.push('　グリップ: '+gr);
+      if(me) lines.push('　実測: '+me);
+      if(pl) lines.push('　想定距離: '+pl); }); });
+  return lines.join('\n'); }
+function openTextExport(scope){ scope=scope||'bag';
+  const opt=[['bag','バッグだけ'],['bs','バッグ＋控え'],['all','すべて']].map(([k,l])=>'<button class="sm'+(k===scope?' pri':'')+'" onclick="openTextExport(\''+k+'\')">'+l+'</button>').join('');
+  openModal('<h3>セッティングを文字で書き出す</h3><div class="row" style="margin-bottom:8px">'+opt+'</div>'+
+    '<textarea id="txout" readonly style="min-height:260px;font-size:13px">'+esc(settingText(scope))+'</textarea>'+
+    '<div class="row" style="margin-top:8px"><button class="pri" onclick="copyTextOut()">コピー</button>'+(navigator.share?'<button onclick="shareTextOut()">共有</button>':'')+'<button onclick="closeModal()">閉じる</button></div>'); }
+async function copyTextOut(){ const t=$('txout').value;
+  try{ await navigator.clipboard.writeText(t); toast('コピーしました'); }
+  catch(e){ const ta=$('txout'); ta.removeAttribute('readonly'); ta.focus(); ta.select(); try{ document.execCommand('copy'); toast('コピーしました'); }catch(e2){ alert('コピーできませんでした。文字を長押しして選んでください。'); } ta.setAttribute('readonly',''); } }
+function shareTextOut(){ navigator.share({title:'クラブセッティング',text:$('txout').value}).catch(()=>{}); }
 
 /* ---------- モーダル ---------- */
 function openModal(h){ $('sheet').innerHTML=h; $('modal').classList.add('on'); }
