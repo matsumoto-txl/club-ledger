@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.3.0 2026-11-18 -->
+<!-- APP_BUILD 0.3.1 2026-11-18 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -92,7 +92,7 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.3.0';
+const APP_VERSION='0.3.1';
 const APP_BUILD_DATE='2026-11-18';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
@@ -412,7 +412,11 @@ function viewData(){
     '<p class="xs muted">使うところ: クラブ詳細の「写真から推定」と、メモ欄の「🎤 声で入力」（どちらもオンライン時のみ）。キーは Google AI Studio（https://aistudio.google.com/apikey）で作れます。'+
     'キーはこの端末の中にだけ保存し、バックアップには含めません（端末ごとに登録が要ります）。使うときは、選んだ写真・録音した音声が Google の Gemini API に送られます。無料枠では、送った内容が Google のサービス改善に使われることがあります（Google の規約による）。</p>'+
     '<div class="notice" style="margin-top:8px"><b>キーが漏れたときの被害を小さくする設定（おすすめ）</b><br>・<b>このアプリ専用のキー</b>を作る（漏れても、そのキーだけ消せば済む）<br>'+
-    '・Google Cloud のキー設定で「API の制限」を <b>Generative Language API だけ</b>にする<br>・「アプリケーションの制限」を <b>ウェブサイト（HTTP リファラー）</b>にし、'+esc(location.hostname||'公開ドメイン')+' だけを許可する<br>・割り当て（クォータ）を低めにしておく<br>・モデルはアプリが自動で選びます（最新のものを優先）</div></div>')+
+    '・無料で使うなら、<b>お支払い方法を登録していないプロジェクト</b>で作る（無料枠の範囲で止まり、請求は来ません）<br>'+
+    '・有料で使うなら、そのプロジェクトに<b>予算アラート</b>（例: 月1,000円で通知）を設定する（漏れたときに気づける）<br>'+
+    '・Google Cloud の「認証情報」でキーを開き、「API の制限」が <b>Gemini API だけ</b>になっているか確かめる<br>'+
+    '・漏れた気がしたら、そのキーを削除して作り直し、ここで入れ替える<br>'+
+    '・Gemini のキーは「アプリケーションの制限」で「ウェブサイト」を選べません（「なし」のままで構いません）<br>・モデルはアプリが自動で選びます（最新のものを優先）</div></div>')+
     sec('ver','バージョン情報','<div class="card"><div style="font-weight:700;font-size:16px">クラブ台帳 v'+APP_VERSION+'</div>'+
     '<div class="xs muted">ビルド日: '+APP_BUILD_DATE+' ／ 保存形式 schema '+SCHEMA+'</div>'+
     '<div class="row" style="margin-top:8px"><button onclick="checkUpdate()">更新を確認</button></div>'+
@@ -500,7 +504,8 @@ const AISEC={basic:'基本情報',shafts:'シャフト',grips:'グリップ'};
 let AIR=null;   // 直近の推定結果 {clubId, model, rows, notes}
 
 async function aiKey(){ const r=await dbGet('meta','geminiKey'); return r&&r.v||''; }
-async function apiErr(r){ let m=''; try{ const j=await r.json(); m=(j.error&&j.error.message)||''; }catch(e){}
+async function apiErr(r){ let m=''; try{ const j=await r.json(); m=(j.error&&j.error.message)||''; }catch(e){} return apiErrMsg(r.status,m); }
+function apiErrMsg(status,m){ const r={status};
   if(r.status===400&&/API key/i.test(m)) return new Error('APIキーが正しくありません。データ › Gemini（AI連携）で入れ直してください。');
   if(r.status===403) return new Error('このキーでは Gemini API を使えません（キーの制限・APIが無効など）。'+(m?'\n詳細: '+m:''));
   if(r.status===429) return new Error('利用の上限に達しました（無料枠は1分・1日あたりの回数に上限があります）。しばらく待ってから試してください。');
@@ -517,16 +522,31 @@ async function geminiModels(key){
     else if(/-flash$/.test(n)) s=500+ver(n)*10; else if(/-flash-lite/.test(n)) s=200+ver(n); else if(/-flash/.test(n)) s=400+ver(n)*10; else if(/-pro/.test(n)) s=300+ver(n)*10; else s=100+ver(n);
     if(/(preview|exp)/.test(n)) s-=250; return s; };
   return names.sort((a,b)=>score(b)-score(a)); }
-async function geminiGenerate(key,body){
-  const cached=(await dbGet('meta','geminiModel')||{}).v;
-  let list=await geminiModels(key); if(!list.length) throw new Error('このキーで使える Gemini のモデルが見つかりませんでした。');
-  if(cached&&list.includes(cached)) list=[cached].concat(list.filter(x=>x!==cached));
-  for(const m of list.slice(0,5)){
-    let r; try{ r=await fetch(GAPI+'models/'+m+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)}); }
+/* 速さのため: ①答える前に考える処理（thinking）を最小にする ②前回うまくいったモデルは一覧を取り直さずに使う。
+   thinking の指定方法はモデルの世代で違い、受け付けないモデルもあるので、400（thinking 関連）なら次の指定→指定なしへ順に落とす。
+   うまくいったモデルと指定は meta.geminiModel に {v:モデル名, think:指定} で覚える（旧形式 {v} もそのまま読める）。 */
+function thinkOpts(m){ return /gemini-2\.5/.test(m) ? [{thinkingBudget:0}] : [{thinkingLevel:'minimal'},{thinkingLevel:'low'}]; }
+async function geminiTry(key,body,m,hint){
+  let opts=thinkOpts(m).concat([null]);
+  if(hint!==undefined) opts=[hint].concat(opts.filter(o=>JSON.stringify(o)!==JSON.stringify(hint)));
+  let lastErr=null;
+  for(const t of opts){
+    const gc=Object.assign({},body.generationConfig||{}); if(t) gc.thinkingConfig=t; else delete gc.thinkingConfig;
+    const b=Object.assign({},body,{generationConfig:gc});
+    let r; try{ r=await fetch(GAPI+'models/'+m+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify(b)}); }
     catch(e){ throw new Error('通信できませんでした（オフラインの可能性）。'); }
-    if(r.status===404) continue;   // 一覧にあっても使えないモデルがある
-    if(!r.ok) throw await apiErr(r);
-    const j=await r.json(); await dbPut('meta',{k:'geminiModel',v:m}); return {model:m,json:j}; }
+    if(r.status===404) return null;   // 一覧にあっても使えないモデルがある
+    if(!r.ok){ let msg=''; try{ const j=await r.json(); msg=(j.error&&j.error.message)||''; }catch(e){}
+      lastErr=apiErrMsg(r.status,msg);
+      if(r.status===400&&t&&/think/i.test(msg)) continue;   // この thinking 指定を受け付けないモデル → 次の指定で
+      throw lastErr; }
+    const j=await r.json(); await dbPut('meta',{k:'geminiModel',v:m,think:t}); return {model:m,json:j}; }
+  throw lastErr||new Error('Gemini API のエラー'); }
+async function geminiGenerate(key,body){
+  const rec=await dbGet('meta','geminiModel')||{};
+  if(rec.v){ const res=await geminiTry(key,body,rec.v,rec.think); if(res) return res; }
+  const list=(await geminiModels(key)).filter(x=>x!==rec.v); if(!list.length) throw new Error('このキーで使える Gemini のモデルが見つかりませんでした。');
+  for(const m of list.slice(0,5)){ const res=await geminiTry(key,body,m); if(res) return res; }
   throw new Error('使える Gemini のモデルが見つかりませんでした（候補: '+list.slice(0,5).join(', ')+'）。'); }
 
 function aiCur(c,f){ if(f.sec==='basic') return c[f.f]; const h=latest(c[f.sec]); return h?h[f.f]:null; }
