@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.3.3 2026-11-19 -->
+<!-- APP_BUILD 0.3.4 2026-11-21 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -94,8 +94,8 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.3.3';
-const APP_BUILD_DATE='2026-11-19';
+const APP_VERSION='0.3.4';
+const APP_BUILD_DATE='2026-11-21';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
@@ -148,6 +148,7 @@ function toNum(v){ if(v==null) return null; v=String(v).replace(/[０-９．－]
 function yen(n){ return n==null?'':Number(n).toLocaleString('ja-JP')+'円'; }
 function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.display='none',2600); }
 function optHtml(opts,val,req){ let found=false; const h=opts.map(o=>{ const v=Array.isArray(o)?o[0]:o, l=Array.isArray(o)?o[1]:o; const s=(val!=null&&String(val)===String(v)); if(s) found=true; return '<option value="'+esc(v)+'"'+(s?' selected':'')+'>'+esc(l)+'</option>'; }).join('');
+  if(req&&(val==null||val==='')) return '<option value="" selected disabled>（未設定）</option>'+h;
   return (req?'':'<option value=""></option>')+(val!=null&&val!==''&&!found?'<option value="'+esc(val)+'" selected>'+esc(val)+'</option>':'')+h; }
 function balNum(b){ if(!b) return null; const m=/^([A-G])(\d(?:\.\d)?)$/.exec(String(b).trim().toUpperCase()); return m?('ABCDEFG'.indexOf(m[1])*10+parseFloat(m[2])):null; }
 function balStr(n){ if(n==null||isNaN(n)) return ''; const L='ABCDEFG'[Math.floor(n/10)]||'?'; return L+(Math.round((n%10)*10)/10); }
@@ -166,8 +167,9 @@ const dbPut=(st,v)=>tx(st,'readwrite',s=>s.put(v));
 const dbDel=(st,k)=>tx(st,'readwrite',s=>s.delete(k));
 const dbGet=(st,k)=>tx(st,'readonly',s=>s.get(k));
 
+let LASTBK=null;   // 最後にバックアップを書き出した日時（meta lastBackup）
 async function loadAll(){
-  CLUBS=await getAll('clubs');
+  CLUBS=await getAll('clubs'); try{ const r=await dbGet('meta','lastBackup'); LASTBK=r&&r.v||null; }catch(e){ LASTBK=null; }
   Object.values(PHOTOS).flat().forEach(p=>URL.revokeObjectURL(p.url)); PHOTOS={};
   (await getAll('photos')).forEach(p=>{ (PHOTOS[p.clubId]=PHOTOS[p.clubId]||[]).push({id:p.id,date:p.date,caption:p.caption||'',url:URL.createObjectURL(p.blob)}); });
   Object.values(PHOTOS).forEach(a=>a.sort((x,y)=>(x.date||'').localeCompare(y.date||'')));
@@ -239,6 +241,7 @@ function clubCard(c){
 function viewBag(){
   const L=sortClubs(liveClubs()); const nBag=L.filter(c=>c.status==='bag').length;
   let h='<div class="row" style="margin:4px 0 6px"><span>バッグ <b>'+nBag+'</b> 本</span>'+(nBag>14?'<span class="badge w">14本を超えています</span>':'')+'<span style="flex:1"></span><label style="cursor:pointer"><span class="badge" style="padding:8px 12px">写真から追加</span><input type="file" accept="image/*" multiple style="display:none" onchange="addClubFromPhotos(this.files)"></label><button class="pri" onclick="addClub()">＋ クラブを追加</button></div>';
+  if(L.length) h+=bkNotice();
   if(!L.length) return h+'<div class="card muted">まだクラブがありません。「＋ クラブを追加」から登録してください。</div>';
   const odd=L.filter(c=>!STATUS.some(x=>x[0]===c.status));
   if(odd.length) h+='<h2>状態が未設定（'+odd.length+'）</h2><p class="xs muted" style="margin:-4px 0 8px">「バッグ」にチェックを付けるか、クラブを開いて状態を選んでください。</p>'+odd.map(clubCard).join('');
@@ -251,6 +254,12 @@ function viewBag(){
 async function toggleBag(id,on){ const c=clubById(id); if(!c) return; c.status=on?'bag':'spare'; await saveClub(c);
   const y=window.scrollY; render(); window.scrollTo(0,y); const n=liveClubs().filter(x=>x.status==='bag').length;
   toast((on?'バッグに入れました':'控えに移しました')+'（バッグ '+n+'本）'); }
+/* バックアップの催促（30日を過ぎるか、一度も書き出していなければ目立たせる） */
+const BK_DAYS=30;
+function bkNotice(){ const d=LASTBK?Math.floor((Date.now()-new Date(LASTBK).getTime())/86400000):null;
+  const late=d==null||d>=BK_DAYS;
+  const msg=d==null?'まだバックアップを書き出していません':(d===0?'最後のバックアップ: 今日':'最後のバックアップ: '+d+'日前');
+  return '<div class="'+(late?'notice':'xs muted')+'" style="margin:0 0 8px;cursor:pointer" onclick="go(\'data\')">'+msg+(late?'。データはこの端末の中だけにあります。データ画面から書き出してください ›':' ›')+'</div>'; }
 async function addClub(){ const c=newClub(); await saveClub(c); openClub(c.id); }
 
 /* ---------- クラブ詳細 ---------- */
@@ -448,7 +457,7 @@ async function exportJSON(){
   for(const p of raw) photos.push({id:p.id,clubId:p.clubId,date:p.date,caption:p.caption||'',createdAt:p.createdAt,dataUrl:await blobToDataURL(p.blob)});
   const obj={app:'club-ledger',schema:SCHEMA,appVersion:APP_VERSION,exportedAt:nowIso(),clubs,photos};
   download(new Blob([JSON.stringify(obj)],{type:'application/json'}),'club-ledger_backup_'+stamp()+'.json');
-  await dbPut('meta',{k:'lastBackup',v:nowIso()}); refreshDataStats(); toast('書き出しました（'+clubs.length+'本・写真'+photos.length+'枚）'); }
+  LASTBK=nowIso(); await dbPut('meta',{k:'lastBackup',v:LASTBK}); refreshDataStats(); toast('書き出しました（'+clubs.length+'本・写真'+photos.length+'枚）'); }
 let PENDING=null;
 async function importJSON(file){ if(!file) return;
   let o; try{ o=JSON.parse(await file.text()); }catch(e){ alert('JSONとして読めませんでした。'); return; }
