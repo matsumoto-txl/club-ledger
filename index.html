@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.3.5 2026-11-22 -->
+<!-- APP_BUILD 0.3.6 2026-11-23 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -31,11 +31,12 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--ca
 nav.tabs button{flex:1;border:0;border-radius:0;background:none;padding:12px 4px;color:var(--muted);font-weight:600}
 .lad .lrow{display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:6px}
 .lad .lrow.new{background:var(--accent-weak)}
-.lad .lnm{flex:0 0 34%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.lad .lnm{flex:0 0 26%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .lad .lbar{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
 .lad .lbar div{height:14px;background:var(--accent);border-radius:3px}
 .lad .lbar span{font-size:13px;white-space:nowrap}
-.lad .gap{font-size:11px;color:var(--muted);padding:0 0 0 36%;line-height:1.6}
+select.dsel{width:auto;flex:none;padding:4px 6px;font-size:13px;min-width:76px}
+.lad .gap{font-size:11px;color:var(--muted);padding:0 0 0 28%;line-height:1.6}
 .lad .gap.wide,.lad .gap.near{color:var(--warn);font-weight:600}
 nav.tabs button.on{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
 h2{font-size:15px;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
@@ -103,8 +104,8 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.3.5';
-const APP_BUILD_DATE='2026-11-22';
+const APP_VERSION='0.3.6';
+const APP_BUILD_DATE='2026-11-23';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
@@ -442,6 +443,12 @@ async function ladApply(){ const d=ladDiff(); if(!d.add.length&&!d.rm.length) re
   for(const c of d.add){ c.status='bag'; await saveClub(c); }
   for(const c of d.rm){ c.status='spare'; await saveClub(c); }
   ST.lad=null; render(); toast('バッグの中身を変えました（バッグ '+liveClubs().filter(x=>x.status==='bag').length+'本）'); }
+/* 一覧で飛距離を入れる: 最新の記録が今日なら書き換え、そうでなければ今日の日付で新しい記録を足す（過去の記録は残す）。空欄を選んでも消さない */
+function ladSel(c){ return '<select class="dsel" aria-label="飛距離" onchange="ladSetDist(\''+c.id+'\',this.value)">'+optHtml(DIST,ladDist(c)).replace('<option value=""></option>','<option value="">飛距離</option>')+'</select>'; }
+async function ladSetDist(id,v){ const c=clubById(id); if(!c) return; const n=toNum(v); const y=window.scrollY;
+  if(n==null){ render(); window.scrollTo(0,y); toast('空欄にはできません（記録はクラブの画面で消せます）'); return; }
+  const p=latest(c.play); if(p&&p.date===today()) p.dist=n; else c.play.push({id:uid('h'),date:today(),dist:n,note:''});
+  await saveClub(c); render(); window.scrollTo(0,y); toast(nameOf(c)+' を '+n+'y にしました（'+today()+' の記録）'); }
 function viewLadder(){
   const ids=ladIds(), d=ladDiff();
   const inSet=liveClubs().filter(c=>ids.includes(c.id));
@@ -450,26 +457,26 @@ function viewLadder(){
   const changed=d.add.length||d.rm.length, n=inSet.length;
   let h='<div class="card"><div class="row"><span>検討中の構成 <b>'+n+'</b> 本</span>'+(n>14?'<span class="badge w">14本を超えています</span>':'')+
     (changed?'<span class="badge">今のバッグから '+(d.add.length?'＋'+d.add.length:'')+(d.add.length&&d.rm.length?' ':'')+(d.rm.length?'−'+d.rm.length:'')+'</span>':'<span class="xs muted">今のバッグと同じ</span>')+'</div>'+
-    '<p class="xs muted" style="margin:6px 0 0">下の「外す」「入れる」で試せます。試すだけではデータは変わりません。</p>'+
+    '<p class="xs muted" style="margin:6px 0 0">下の「外す」「入れる」で試せます。試すだけではデータは変わりません。飛距離は各行の欄で直せます（こちらはすぐ保存され、今日の日付の記録になります）。</p>'+
     (changed?'<div class="row" style="margin-top:8px"><button class="pri" onclick="ladApply()">この構成をバッグにする</button><button onclick="ladReset()">今のバッグに戻す</button></div>':'')+'</div>';
   if(!withD.length) h+='<div class="card muted">飛距離が入っているクラブがありません。クラブを開いて「プレー」の想定距離（キャリー）を入れてください。</div>';
-  else { const mx=Math.max(...withD.map(ladDist));
+  else { const mx=Math.max(...withD.map(ladDist)), lo=Math.max(0,Math.min(...withD.map(ladDist))-30);   // 差が見えやすいよう、最短より30y手前を棒の起点にする
     h+='<div class="card lad">';
     withD.forEach((c,i)=>{ const v=ladDist(c);
       if(i>0){ const g=ladDist(withD[i-1])-v, cls=g>=LAD_WIDE?'wide':(g<=LAD_NEAR?'near':'');
         h+='<div class="gap '+cls+'">差 '+g+'y'+(cls==='wide'?'（間が空いています）':cls==='near'?'（近すぎます）':'')+'</div>'; }
       const isNew=c.status!=='bag';
       h+='<div class="lrow'+(isNew?' new':'')+'"><a href="#" class="lnm" onclick="openClub(\''+c.id+'\');return false">'+esc(c.num||'')+' <span class="xs muted">'+esc([c.maker,c.series].filter(Boolean).join(' '))+'</span></a>'+
-        '<div class="lbar"><div style="width:'+Math.max(4,v/mx*100)+'%"></div><span>'+v+'y</span></div>'+
+        '<div class="lbar"><div style="width:'+(mx>lo?12+88*(v-lo)/(mx-lo):100)+'%"></div></div>'+ladSel(c)+
         '<button class="sm" onclick="ladToggle(\''+c.id+'\')">外す</button></div>'; });
     h+='<div class="xs muted" style="margin-top:6px">差が'+LAD_WIDE+'y以上を「間が空いています」、'+LAD_NEAR+'y以下を「近すぎます」としています（目安は仮の値です）。'+(withD.some(c=>c.status!=='bag')?'色の付いた行は、今はバッグに入っていないクラブです。':'')+'</div></div>'; }
   if(noD.length||pts.length) h+='<div class="card"><div class="sm"><b>階段に入っていないクラブ</b></div>'+
-    noD.map(c=>'<div class="row"><a href="#" onclick="openClub(\''+c.id+'\');return false">'+esc(nameOf(c))+'</a><span class="xs muted">飛距離が未入力</span><span style="flex:1"></span><button class="sm" onclick="ladToggle(\''+c.id+'\')">外す</button></div>').join('')+
+    noD.map(c=>'<div class="row"><a href="#" onclick="openClub(\''+c.id+'\');return false">'+esc(nameOf(c))+'</a><span style="flex:1"></span>'+ladSel(c)+'<button class="sm" onclick="ladToggle(\''+c.id+'\')">外す</button></div>').join('')+
     pts.map(c=>'<div class="row"><span>'+esc(nameOf(c))+'</span><span class="xs muted">パター（本数には数えます）</span><span style="flex:1"></span><button class="sm" onclick="ladToggle(\''+c.id+'\')">外す</button></div>').join('')+'</div>';
   const cand=sortClubs(liveClubs().filter(c=>!ids.includes(c.id)&&c.status!=='sold'&&c.status!=='gone'));
   h+='<h2>入れ替え候補（'+cand.length+'）</h2>';
   h+=cand.length?'<div class="card">'+cand.map(c=>{ const v=ladDist(c);
-      return '<div class="row"><a href="#" onclick="openClub(\''+c.id+'\');return false">'+esc(nameOf(c))+'</a><span class="xs muted">'+(v!=null?v+'y':'飛距離未入力')+(c.status==='bag'?'・今はバッグ':'')+'</span><span style="flex:1"></span><button class="sm" onclick="ladToggle(\''+c.id+'\')">入れる</button></div>'; }).join('')+'</div>'
+      return '<div class="row"><a href="#" onclick="openClub(\''+c.id+'\');return false">'+esc(nameOf(c))+'</a>'+(c.status==='bag'?'<span class="xs muted">今はバッグ</span>':'')+'<span style="flex:1"></span>'+ladSel(c)+'<button class="sm" onclick="ladToggle(\''+c.id+'\')">入れる</button></div>'; }).join('')+'</div>'
     :'<div class="card muted xs">控えのクラブがありません。</div>';
   return h; }
 
