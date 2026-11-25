@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="クラブ台帳">
 <meta name="theme-color" content="#1d3557">
-<!-- APP_BUILD 0.3.6 2026-11-23 -->
+<!-- APP_BUILD 0.3.7 2026-11-25 -->
 <style>
 :root{
   --bg:#f6f7f5; --card:#fff; --fg:#1d2420; --muted:#6b736e; --line:#dfe3df;
@@ -31,13 +31,18 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--ca
 nav.tabs button{flex:1;border:0;border-radius:0;background:none;padding:12px 4px;color:var(--muted);font-weight:600}
 .lad .lrow{display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:6px}
 .lad .lrow.new{background:var(--accent-weak)}
-.lad .lnm{flex:0 0 26%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.lad .lnm{flex:0 0 22%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .lad .lbar{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
 .lad .lbar div{height:14px;background:var(--accent);border-radius:3px}
 .lad .lbar span{font-size:13px;white-space:nowrap}
 select.dsel{width:auto;flex:none;padding:4px 6px;font-size:13px;min-width:76px}
-.lad .gap{font-size:11px;color:var(--muted);padding:0 0 0 28%;line-height:1.6}
+.lad .gap{font-size:11px;color:var(--muted);padding:0 0 0 24%;line-height:1.6}
 .lad .gap.wide,.lad .gap.near{color:var(--warn);font-weight:600}
+.lad .lbar .bw{position:relative;height:14px;flex:1;min-width:0;background:transparent}
+.lad .lbar .bw div{position:absolute;left:0;top:0}
+.lad .lbar .bw .rg{height:14px;background:var(--accent);opacity:.35;border-radius:3px}
+.drng{display:inline-flex;align-items:center;gap:2px;flex:none;font-size:12px}
+.drng input{width:40px;padding:4px 3px;font-size:13px;text-align:center}
 nav.tabs button.on{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
 h2{font-size:15px;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
 h2 .sp{flex:1}
@@ -104,8 +109,8 @@ svg .lbl{fill:var(--fg);font-size:10px}
 <datalist id="dl-smaker"></datalist><datalist id="dl-sseries"></datalist><datalist id="dl-gmaker"></datalist><datalist id="dl-shop"></datalist>
 <script>
 'use strict';
-const APP_VERSION='0.3.6';
-const APP_BUILD_DATE='2026-11-23';
+const APP_VERSION='0.3.7';
+const APP_BUILD_DATE='2026-11-25';
 const SCHEMA=1;
 const DBNAME='club-ledger', DBVER=1;   // ★保存先の名前と版。変えるときは明示許可制（DESIGN.md）
 
@@ -140,7 +145,8 @@ const F={
     {k:'length',l:'長さ（60度法）',t:'sel',o:LEN,n:1},{k:'loft',l:'ロフト',t:'sel',o:LOFT,n:1},{k:'lie',l:'ライ',t:'sel',o:LIE,n:1},
     {k:'cpm',l:'振動数',t:'num',u:'cpm'},{k:'headW',l:'ヘッド重量',t:'num',u:'g'},{k:'note',l:'メモ（鉛・調整など）',t:'area'}]},
   play:{ttl:'ラウンド情報（想定距離・コメント）', hist:true, f:[
-    {k:'date',l:'日付',t:'date'},{k:'dist',l:'想定距離（キャリー）',t:'sel',o:DIST,n:1},{k:'note',l:'コメント',t:'area'}]},
+    {k:'date',l:'日付',t:'date'},{k:'dist',l:'想定距離（キャリー）',t:'sel',o:DIST,n:1},
+    {k:'distLo',l:'幅の下限（幅を入れると、想定距離は幅の中央になります）',t:'num',u:'y'},{k:'distHi',l:'幅の上限',t:'num',u:'y'},{k:'note',l:'コメント',t:'area'}]},
   buy:{ttl:'購入', hist:false, f:[
     {k:'date',l:'購入日',t:'date'},{k:'shop',l:'購入先',t:'text',dl:'dl-shop'},{k:'cond',l:'新品／中古',t:'sel',o:COND},
     {k:'rank',l:'中古ランク',t:'sel',o:RANK},{k:'price',l:'価格（税込）',t:'num',u:'円'},{k:'note',l:'メモ',t:'area'}]},
@@ -196,6 +202,13 @@ async function saveClub(c){ c.updatedAt=nowIso(); if(c.nameAuto) c.name=autoName
   const i=CLUBS.findIndex(x=>x.id===c.id); if(i<0) CLUBS.push(c); else CLUBS[i]=c; fillDatalists(); }
 function sortedHist(arr){ return (arr||[]).map((h,i)=>[h,i]).sort((a,b)=>((b[0].date||'').localeCompare(a[0].date||''))||(b[1]-a[1])).map(x=>x[0]); }
 function latest(arr){ return sortedHist(arr)[0]||null; }
+/* 飛距離の幅（v0.3.7）: 記録 play に distLo / distHi を足すだけ。dist は従来どおり代表値（幅があるときは中央を四捨五入）で、
+   並べ方・差・CSV・文字の書き出しは dist を使う。幅の無い従来の記録はそのまま（1点の記録として扱う） */
+function hasRng(p){ return !!p&&p.distLo!=null&&p.distHi!=null; }
+function distTxt(p){ if(!p) return ''; if(hasRng(p)) return p.distLo===p.distHi?p.distLo+'y':p.distLo+'–'+p.distHi+'y'; return p.dist!=null?p.dist+'y':''; }
+function setDist(p,lo,hi){ if(lo!=null&&hi!=null&&lo>hi){ const t=lo; lo=hi; hi=t; }
+  if(lo!=null&&hi!=null&&lo!==hi){ p.distLo=lo; p.distHi=hi; p.dist=Math.round((lo+hi)/2); }
+  else { p.dist=lo!=null?lo:hi; delete p.distLo; delete p.distHi; } }
 function kindIdx(k){ const i=KINDS.findIndex(x=>x[0]===k); return i<0?99:i; }
 function orderKey(c){ const m=latest(c.meas); const lf=c.loftSpec!=null?c.loftSpec:(m&&m.loft!=null?m.loft:null); const n=parseFloat(String(c.num||'').replace(/[^\d.]/g,'')); return [kindIdx(c.kind), lf!=null?lf:(isNaN(n)?999:n)]; }
 function sortClubs(a){ return a.slice().sort((x,y)=>{ const p=orderKey(x), q=orderKey(y); return (p[0]-q[0])||(p[1]-q[1])||nameOf(x).localeCompare(nameOf(y)); }); }
@@ -205,7 +218,7 @@ function sumOf(sec,h){ if(!h) return '';
   if(sec==='shafts') return [h.maker,h.series,h.flex].filter(Boolean).join(' ')+(h.weight!=null?' '+h.weight+'g':'')+(h.torque!=null?' / T'+h.torque:'')+(h.kick?' / '+h.kick+'調子':'');
   if(sec==='grips') return [h.maker,h.model].filter(Boolean).join(' ')+(h.weight!=null?' '+h.weight+'g':'');
   if(sec==='meas') return [h.total!=null?h.total+'g':'',h.balance||'',h.length!=null?h.length.toFixed(2)+'″':'',h.loft!=null?'ロフト'+h.loft+'°':'',h.lie!=null?'ライ'+h.lie+'°':'',h.cpm!=null?h.cpm+'cpm':'',h.headW!=null?'ヘッド'+h.headW+'g':''].filter(Boolean).join(' / ');
-  if(sec==='play') return (h.dist!=null?h.dist+'y':'');
+  if(sec==='play') return distTxt(h);
   if(sec==='buy') return [h.shop,h.cond,h.rank?'ランク'+h.rank:'',yen(h.price)].filter(Boolean).join(' / ');
   if(sec==='sell') return [h.to,yen(h.price)].filter(Boolean).join(' / ');
   return ''; }
@@ -246,7 +259,7 @@ function clubCard(c){
   const l1=[c.series,c.year?c.year+'年':''].filter(Boolean).join(' / ');
   return '<div class="card club" onclick="openClub(\''+c.id+'\')">'+th+'<div class="body"><div class="nm">'+esc(nameOf(c))+'</div>'+
     (l1?'<div class="ln">'+esc(l1)+'</div>':'')+(s?'<div class="ln">シャフト: '+esc(sumOf('shafts',s))+'</div>':'')+
-    (m?'<div class="ln">実測: '+esc(sumOf('meas',m))+'</div>':'')+(p&&p.dist!=null?'<div class="ln">想定 '+p.dist+'y</div>':'')+'</div>'+
+    (m?'<div class="ln">実測: '+esc(sumOf('meas',m))+'</div>':'')+(p&&p.dist!=null?'<div class="ln">想定 '+distTxt(p)+'</div>':'')+'</div>'+
     ((c.status!=='sold'&&c.status!=='gone')?'<label class="bagchk" onclick="event.stopPropagation()"><input type="checkbox"'+(c.status==='bag'?' checked':'')+' onchange="toggleBag(\''+c.id+'\',this.checked)" aria-label="バッグに入れる">バッグ</label>':'')+'</div>';
 }
 function viewBag(){
@@ -318,7 +331,7 @@ function viewClub(){
   h+='<div class="card">'+(ph.length?'<div class="photos">'+ph.map(p=>'<img src="'+p.url+'" alt="" onclick="viewPhoto(\''+p.id+'\')">').join('')+'</div>':'<div class="muted sm">写真なし（刻印・シリアル・ソールの傷・購入時の状態などを残しておけます）</div>')+'</div>';
   // メモ
   h+='<h2>メモ</h2><div class="card"><textarea onchange="setBasic(\'memo\',this.value)" id="ta_memo" placeholder="Webで調べにくい情報（個体差・刻印・前オーナー情報など）">'+esc(c.memo||'')+'</textarea>'+micBtn('ta_memo')+'</div>';
-  h+='<div class="row" style="margin-top:18px"><button onclick="dupClub()">このクラブを複製</button><span style="flex:1"></span><button class="warn" onclick="trashClub()">ゴミ箱へ移す</button></div>';
+  h+='<div class="row" style="margin-top:18px"><button onclick="dupClub()">このクラブを複製</button><button onclick="clubJsonOut()">JSONで書き出す</button><span style="flex:1"></span><button class="warn" onclick="trashClub()">ゴミ箱へ移す</button></div>';
   h+='<p class="xs muted">複製は基本情報とシャフト・グリップだけを写します（実測・ラウンド情報・購入売却・写真は写しません）。</p>';
   return h;
 }
@@ -345,6 +358,7 @@ async function saveHist(sec,hid){
   const c=clubById(ST.id), d=F[sec], fm=$('hf'), o={};
   d.f.forEach(f=>{ const v=fm.elements[f.k].value; o[f.k]=(f.t==='num'||f.n)?toNum(v):(v.trim?v.trim():v); if(o[f.k]==='') o[f.k]=(f.t==='num'||f.n)?null:''; });
   if(d.f.some(f=>f.t==='num'&&fm.elements[f.k].value.trim()!==''&&o[f.k]==null)){ alert('数値の欄に数字以外が入っています。'); return; }
+  if(sec==='play'){ if(o.distLo!=null||o.distHi!=null) setDist(o,o.distLo,o.distHi); else { delete o.distLo; delete o.distHi; } }
   if(d.hist){ if(hid){ const i=c[sec].findIndex(h=>h.id===hid); o.id=hid; c[sec][i]=o; } else { o.id=uid('h'); c[sec].push(o); } }
   else c[sec]=o;
   await saveClub(c); closeModal(); render(); toast('保存しました');
@@ -360,6 +374,15 @@ async function dupClub(){ const s=clubById(ST.id), c=newClub();
   c.shafts=JSON.parse(JSON.stringify(s.shafts)).map(h=>Object.assign(h,{id:uid('h')}));
   c.grips=JSON.parse(JSON.stringify(s.grips)).map(h=>Object.assign(h,{id:uid('h')}));
   await saveClub(c); openClub(c.id); toast('複製しました。番手を直すと、ロフト・ライをカタログから取り直せます'); }
+/* クラブ1本の詳細を JSON で書き出す（v0.3.7）。写真は入れない。閲覧・AIへの相談・受け渡し用で、読み込みには使わない（復元はバックアップで） */
+function clubJson(c){ const o=JSON.parse(JSON.stringify(c)); delete o.deletedAt;
+  ['shafts','grips','meas','play'].forEach(k=>{ o[k]=sortedHist(o[k]); });
+  return JSON.stringify({format:'club-ledger-club',version:1,app:APP_VERSION,exportedAt:nowIso(),name:nameOf(c),club:o},null,2); }
+function clubJsonOut(){ const c=clubById(ST.id); if(!c) return;
+  openModal('<h3>このクラブを JSON で書き出す</h3><p class="xs muted">基本情報・シャフト・グリップ・実測・ラウンド情報・購入・売却・メモを入れます（履歴は新しい順）。写真は入れません。復元にはデータ画面のバックアップを使ってください。</p>'+
+    '<textarea id="txout" readonly style="min-height:260px;font-size:12px;font-family:monospace">'+esc(clubJson(c))+'</textarea>'+
+    '<div class="row" style="margin-top:8px"><button class="pri" onclick="copyTextOut()">コピー</button><button onclick="clubJsonSave()">ファイルに保存</button>'+(navigator.share?'<button onclick="shareTextOut()">共有</button>':'')+'<button onclick="closeModal()">閉じる</button></div>'); }
+function clubJsonSave(){ const c=clubById(ST.id); download(new Blob([$('txout').value],{type:'application/json'}),'club-ledger_club_'+String(nameOf(c)).replace(/[\\\/:*?"<>|\s]+/g,'_')+'_'+stamp()+'.json'); }
 async function trashClub(){ const c=clubById(ST.id);
   if(!confirm('「'+nameOf(c)+'」をゴミ箱へ移します。\n（データ › ゴミ箱 からいつでも戻せます）')) return;
   c.deletedAt=nowIso(); await saveClub(c); go('bag'); toast('ゴミ箱へ移しました'); }
@@ -444,11 +467,60 @@ async function ladApply(){ const d=ladDiff(); if(!d.add.length&&!d.rm.length) re
   for(const c of d.rm){ c.status='spare'; await saveClub(c); }
   ST.lad=null; render(); toast('バッグの中身を変えました（バッグ '+liveClubs().filter(x=>x.status==='bag').length+'本）'); }
 /* 一覧で飛距離を入れる: 最新の記録が今日なら書き換え、そうでなければ今日の日付で新しい記録を足す（過去の記録は残す）。空欄を選んでも消さない */
-function ladSel(c){ return '<select class="dsel" aria-label="飛距離" onchange="ladSetDist(\''+c.id+'\',this.value)">'+optHtml(DIST,ladDist(c)).replace('<option value=""></option>','<option value="">飛距離</option>')+'</select>'; }
-async function ladSetDist(id,v){ const c=clubById(id); if(!c) return; const n=toNum(v); const y=window.scrollY;
-  if(n==null){ render(); window.scrollTo(0,y); toast('空欄にはできません（記録はクラブの画面で消せます）'); return; }
-  const p=latest(c.play); if(p&&p.date===today()) p.dist=n; else c.play.push({id:uid('h'),date:today(),dist:n,note:''});
-  await saveClub(c); render(); window.scrollTo(0,y); toast(nameOf(c)+' を '+n+'y にしました（'+today()+' の記録）'); }
+/* v0.3.7: 1つの値の選択欄をやめ、「下限〜上限」の2つの欄にした（片方だけ入れれば1点の記録） */
+function ladSel(c){ const p=latest(c.play), lo=p?(hasRng(p)?p.distLo:p.dist):null, hi=p&&hasRng(p)?p.distHi:null;
+  const inp=(v,ph)=>'<input inputmode="numeric" aria-label="飛距離の'+ph+'" placeholder="'+ph+'" value="'+(v==null?'':v)+'" onchange="ladSetDist(\''+c.id+'\',this.parentNode)">';
+  return '<span class="drng">'+inp(lo,'下限')+'〜'+inp(hi,'上限')+'y</span>'; }
+/* 最新の記録が今日なら書き換え、そうでなければ今日の日付で新しい記録を足す（過去の記録は残す）。v0.3.6 と同じ */
+async function putDist(c,lo,hi){ const p=latest(c.play);
+  if(p&&p.date===today()) setDist(p,lo,hi); else { const q={id:uid('h'),date:today(),dist:null,note:''}; setDist(q,lo,hi); c.play.push(q); }
+  await saveClub(c); }
+async function ladSetDist(id,box){ const c=clubById(id); if(!c) return; const ins=box.querySelectorAll('input'), y=window.scrollY;
+  const lo=toNum(ins[0].value), hi=toNum(ins[1].value);
+  if((ins[0].value.trim()&&lo==null)||(ins[1].value.trim()&&hi==null)){ render(); window.scrollTo(0,y); toast('数字で入れてください'); return; }
+  if(lo==null&&hi==null){ render(); window.scrollTo(0,y); toast('空欄にはできません（記録はクラブの画面で消せます）'); return; }
+  await putDist(c,lo,hi); ladLater(box); toast(nameOf(c)+' を '+distTxt(latest(c.play))+' にしました（'+today()+' の記録）'); }
+
+/* 下限を入れて上限へ移るときに描き直すと入力中の欄が消えるので、2つの欄からフォーカスが外れてから描き直す */
+function ladLater(box){ const redo=()=>{ const y=window.scrollY; render(); window.scrollTo(0,y); };
+  setTimeout(()=>{ if(box.isConnected&&box.contains(document.activeElement)) box.addEventListener('focusout',()=>setTimeout(()=>{ if(!box.contains(document.activeElement)) redo(); },0),{once:true}); else redo(); },0); }
+/* ---------- JSON で飛距離を取り込む ----------
+   形: {"format":"club-ledger-distance","version":1,"items":[{"num":"7i","lo":135,"hi":146}, …]}（1点なら "dist":140）
+   今のバッグのクラブに番手だけで当てる。当たらない・2本以上に当たる番手は取り込まず、画面に出す */
+function numKey(s,kind){ s=String(s==null?'':s).replace(/[！-～]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)).replace(/[\s番]/g,'').toUpperCase().replace(/度|DEG/,'°');
+  if(/^(DR|D|DRIVER|1W|W1)$/.test(s)) return '1W';
+  let m;
+  if((m=/^(\d+)(\+?)(W|FW)(\+?)$/.exec(s))) return m[1]+(m[2]||m[4]?'+':'')+'W';
+  if((m=/^(\d+)(H|U|UT|HY)$/.exec(s))) return m[1]+'U';
+  if((m=/^(\d+)I$/.exec(s))) return m[1]+'I';
+  if((m=/^P$|^PW$/.exec(s))) return 'PW';
+  if(/^(AW|GW|SW|LW)$/.test(s)) return s;
+  if((m=/^(\d+)°?$/.exec(s))&&+m[1]>=40) return m[1]+'°';
+  if((m=/^(\d+)(\+?)$/.exec(s))){ const k={W:'W',FW:'W',UT:'U',I:'I'}[kind]; if(k) return m[1]+(k==='W'?m[2]:'')+k; if(m[2]) return m[1]+'+W'; }
+  return s; }
+function distImport(file){ if(!file) return; const r=new FileReader();
+  r.onload=()=>{ let o; try{ o=JSON.parse(r.result); }catch(e){ alert('JSON として読めませんでした。'); return; }
+    const items=Array.isArray(o)?o:(o&&Array.isArray(o.items)?o.items:null);
+    if(!items){ alert('飛距離の取込用 JSON ではありません（items がありません）。\nバックアップの読み込みは「データ」画面からです。'); return; }
+    const bag=liveClubs().filter(c=>c.status==='bag'), ok=[], ng=[];
+    items.forEach(it=>{ const lo0=toNum(it.lo!=null?it.lo:it.dist), hi0=toNum(it.hi!=null?it.hi:it.dist), lab=String(it.num==null?'':it.num);
+      if(lo0==null&&hi0==null){ ng.push([lab,'飛距離が入っていません']); return; }
+      const k=numKey(lab), hit=bag.filter(c=>numKey(c.num,c.kind)===k);
+      if(!hit.length) ng.push([lab,'今のバッグにこの番手がありません']);
+      else if(hit.length>1) ng.push([lab,'今のバッグに同じ番手が'+hit.length+'本あります（'+hit.map(nameOf).join('、')+'）']);
+      else if(ok.some(x=>x.c===hit[0])) ng.push([lab,'同じクラブに当たる行が前にもあります']);
+      else ok.push({c:hit[0],lab,lo:lo0,hi:hi0}); });
+    DIMP=ok;
+    const lst=(a,f)=>'<div class="sm">'+a.map(f).join('')+'</div>';
+    openModal('<h3>飛距離を取り込む</h3>'+
+      (ok.length?'<p class="sm">次の <b>'+ok.length+'</b> 本の飛距離を、今日（'+today()+'）の記録として入れます。今日の記録があるクラブは書き換え、無いクラブは記録を足します（前の記録は残ります）。</p>'+
+        lst(ok,x=>{ const q={}; setDist(q,x.lo,x.hi); const cur=latest(x.c.play); return '<div class="row"><span>'+esc(x.lab)+' → <b>'+esc(nameOf(x.c))+'</b></span><span style="flex:1"></span><span class="xs muted">'+esc(cur?distTxt(cur)||'なし':'なし')+' →</span> <b>'+esc(distTxt(q))+'</b></div>'; }):'<p class="sm">取り込めるクラブがありませんでした。</p>')+
+      (ng.length?'<div class="notice" style="margin-top:8px"><b>取り込めなかった番手（'+ng.length+'）</b>'+ng.map(x=>'<div>・'+esc(x[0]||'（番手なし）')+': '+esc(x[1])+'</div>').join('')+'<div class="xs">番手の書き方をそろえるか、クラブの画面から入れてください。</div></div>':'')+
+      '<div class="row" style="margin-top:10px">'+(ok.length?'<button class="pri" onclick="distImportRun()">取り込む</button>':'')+'<button onclick="closeModal()">'+(ok.length?'キャンセル':'閉じる')+'</button></div>'); };
+  r.readAsText(file); }
+let DIMP=null;
+async function distImportRun(){ if(!DIMP) return; for(const x of DIMP) await putDist(x.c,x.lo,x.hi);
+  const n=DIMP.length; DIMP=null; closeModal(); render(); toast(n+'本の飛距離を取り込みました（'+today()+' の記録）'); }
 function viewLadder(){
   const ids=ladIds(), d=ladDiff();
   const inSet=liveClubs().filter(c=>ids.includes(c.id));
@@ -457,17 +529,19 @@ function viewLadder(){
   const changed=d.add.length||d.rm.length, n=inSet.length;
   let h='<div class="card"><div class="row"><span>検討中の構成 <b>'+n+'</b> 本</span>'+(n>14?'<span class="badge w">14本を超えています</span>':'')+
     (changed?'<span class="badge">今のバッグから '+(d.add.length?'＋'+d.add.length:'')+(d.add.length&&d.rm.length?' ':'')+(d.rm.length?'−'+d.rm.length:'')+'</span>':'<span class="xs muted">今のバッグと同じ</span>')+'</div>'+
-    '<p class="xs muted" style="margin:6px 0 0">下の「外す」「入れる」で試せます。試すだけではデータは変わりません。飛距離は各行の欄で直せます（こちらはすぐ保存され、今日の日付の記録になります）。</p>'+
+    '<p class="xs muted" style="margin:6px 0 0">下の「外す」「入れる」で試せます。試すだけではデータは変わりません。飛距離は各行の「下限〜上限」の欄で直せます（片方だけなら1点。すぐ保存され、今日の日付の記録になります）。階段は幅の中央で並べます。</p>'+
+    '<div class="row" style="margin-top:6px"><label style="cursor:pointer"><span class="badge" style="padding:6px 10px">JSONで飛距離を取り込む</span><input type="file" accept="application/json,.json" style="display:none" onchange="distImport(this.files[0]);this.value=\'\'"></label></div>'+
     (changed?'<div class="row" style="margin-top:8px"><button class="pri" onclick="ladApply()">この構成をバッグにする</button><button onclick="ladReset()">今のバッグに戻す</button></div>':'')+'</div>';
   if(!withD.length) h+='<div class="card muted">飛距離が入っているクラブがありません。クラブを開いて「プレー」の想定距離（キャリー）を入れてください。</div>';
-  else { const mx=Math.max(...withD.map(ladDist)), lo=Math.max(0,Math.min(...withD.map(ladDist))-30);   // 差が見えやすいよう、最短より30y手前を棒の起点にする
+  else { const ends=withD.map(c=>{ const p=latest(c.play); return hasRng(p)?[p.distLo,p.distHi]:[ladDist(c),ladDist(c)]; }), mx=Math.max(...ends.map(e=>e[1])), lo=Math.max(0,Math.min(...ends.map(e=>e[0]))-30);   // 差が見えやすいよう、最短より30y手前を棒の起点にする
     h+='<div class="card lad">';
     withD.forEach((c,i)=>{ const v=ladDist(c);
       if(i>0){ const g=ladDist(withD[i-1])-v, cls=g>=LAD_WIDE?'wide':(g<=LAD_NEAR?'near':'');
         h+='<div class="gap '+cls+'">差 '+g+'y'+(cls==='wide'?'（間が空いています）':cls==='near'?'（近すぎます）':'')+'</div>'; }
       const isNew=c.status!=='bag';
       h+='<div class="lrow'+(isNew?' new':'')+'"><a href="#" class="lnm" onclick="openClub(\''+c.id+'\');return false">'+esc(c.num||'')+' <span class="xs muted">'+esc([c.maker,c.series].filter(Boolean).join(' '))+'</span></a>'+
-        '<div class="lbar"><div style="width:'+(mx>lo?12+88*(v-lo)/(mx-lo):100)+'%"></div></div>'+ladSel(c)+
+        '<div class="lbar"><div class="bw">'+(()=>{ const pc=x=>mx>lo?Math.max(0,Math.min(100,12+88*(x-lo)/(mx-lo))):100, p=latest(c.play);
+          return '<div style="width:'+pc(v)+'%"></div>'+(hasRng(p)?'<div class="rg" style="left:'+pc(p.distLo)+'%;width:'+Math.max(1,pc(p.distHi)-pc(p.distLo))+'%"></div>':''); })()+'</div></div>'+ladSel(c)+
         '<button class="sm" onclick="ladToggle(\''+c.id+'\')">外す</button></div>'; });
     h+='<div class="xs muted" style="margin-top:6px">差が'+LAD_WIDE+'y以上を「間が空いています」、'+LAD_NEAR+'y以下を「近すぎます」としています（目安は仮の値です）。'+(withD.some(c=>c.status!=='bag')?'色の付いた行は、今はバッグに入っていないクラブです。':'')+'</div></div>'; }
   if(noD.length||pts.length) h+='<div class="card"><div class="sm"><b>階段に入っていないクラブ</b></div>'+
@@ -547,10 +621,10 @@ async function doImport(mode){ const o=PENDING; PENDING=null; if(!o) return;
     await dbPut('photos',{id:mode==='add'?uid('p'):p.id,clubId:map[p.clubId],blob,date:p.date||'',caption:p.caption||'',createdAt:p.createdAt||nowIso()}); np++; }catch(e){} }
   await loadAll(); closeModal(); go('bag'); toast((mode==='add'?'追加':'上書き')+'しました（'+nc+'本・写真'+np+'枚）'); }
 function exportCSV(){
-  const head=['ID','名前','状態','種別','番手','メーカー','シリーズ','発売年','セット名','ロフト(カタログ)','ライ(カタログ)','シャフトメーカー','シャフト','フレックス','シャフト重量','総重量','バランス','長さ','実測ロフト','実測ライ','振動数','実測日','想定距離','購入日','購入先','新品/中古','購入価格','売却日','売却価格','メモ'];
+  const head=['ID','名前','状態','種別','番手','メーカー','シリーズ','発売年','セット名','ロフト(カタログ)','ライ(カタログ)','シャフトメーカー','シャフト','フレックス','シャフト重量','総重量','バランス','長さ','実測ロフト','実測ライ','振動数','実測日','想定距離','購入日','購入先','新品/中古','購入価格','売却日','売却価格','メモ','想定距離の下限','想定距離の上限'];
   const st=k=>(STATUS.find(s=>s[0]===k)||[,''])[1], kd=k=>(KINDS.find(s=>s[0]===k)||[,k])[1];
   const rows=sortClubs(liveClubs()).map(c=>{ const s=latest(c.shafts)||{}, m=latest(c.meas)||{}, p=latest(c.play)||{}, b=c.buy||{}, e=c.sell||{};
-    return [c.id,nameOf(c),st(c.status),kd(c.kind),c.num,c.maker,c.series,c.year,c.setName,c.loftSpec,c.lieSpec,s.maker,s.series,s.flex,s.weight,m.total,m.balance,m.length,m.loft,m.lie,m.cpm,m.date,p.dist,b.date,b.shop,b.cond,b.price,e.date,e.price,c.memo]; });
+    return [c.id,nameOf(c),st(c.status),kd(c.kind),c.num,c.maker,c.series,c.year,c.setName,c.loftSpec,c.lieSpec,s.maker,s.series,s.flex,s.weight,m.total,m.balance,m.length,m.loft,m.lie,m.cpm,m.date,p.dist,b.date,b.shop,b.cond,b.price,e.date,e.price,c.memo,p.distLo,p.distHi]; });
   const q=v=>{ v=v==null?'':String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   download(new Blob(['﻿'+[head].concat(rows).map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv'}),'club-ledger_list_'+stamp()+'.csv'); }
 function viewTrash(){ const a=CLUBS.filter(c=>c.deletedAt);
